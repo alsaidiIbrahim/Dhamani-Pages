@@ -30,3 +30,29 @@ test('valid transfer updates revision and logs event atomically',async()=>{
  assert.ok(pool.calls.some(c=>c.sql.includes('device_transferred')));
  assert.ok(pool.calls.some(c=>c.sql==='COMMIT'));
 });
+
+test('activation binds an approved license and records the event',async()=>{
+ const pool=fakePool(sql=>sql.startsWith('SELECT l.id')?{rowCount:1,rows:[{id:'license',status:'active',device_public_key:null,revision:0,order_status:'approved'}]}:sql.startsWith('UPDATE licenses')?{rowCount:1,rows:[{revision:0}]}:{rowCount:1,rows:[]});
+ const result=await new PostgresLicenseRepository(pool).activateLicense({licenseId:'license',devicePublicKey:'deviceA',verifyDeviceProof:()=>true});
+ assert.equal(result.alreadyBound,false);
+ assert.ok(pool.calls.some(x=>x.sql.includes('device_activated')));
+ assert.ok(pool.calls.some(x=>x.sql==='COMMIT'));
+});
+test('activation rejects unpaid order without writing',async()=>{
+ const pool=fakePool(sql=>sql.startsWith('SELECT l.id')?{rowCount:1,rows:[{status:'active',device_public_key:null,revision:0,order_status:'pending'}]}:{rowCount:1,rows:[]});
+ await assert.rejects(()=>new PostgresLicenseRepository(pool).activateLicense({licenseId:'license',devicePublicKey:'deviceA',verifyDeviceProof:()=>true}),/payment_not_approved/);
+ assert.ok(!pool.calls.some(x=>x.sql.startsWith('UPDATE licenses')));
+ assert.ok(pool.calls.some(x=>x.sql==='ROLLBACK'));
+});
+test('activation rejects a different device before proof or update',async()=>{
+ const pool=fakePool(sql=>sql.startsWith('SELECT l.id')?{rowCount:1,rows:[{status:'active',device_public_key:'deviceA',revision:0,order_status:'approved'}]}:{rowCount:1,rows:[]});
+ let proofCalled=false;
+ await assert.rejects(()=>new PostgresLicenseRepository(pool).activateLicense({licenseId:'license',devicePublicKey:'deviceB',verifyDeviceProof:()=>{proofCalled=true;return true}}),/already_bound/);
+ assert.equal(proofCalled,false);
+ assert.ok(!pool.calls.some(x=>x.sql.startsWith('UPDATE licenses')));
+});
+test('activation rejects missing device proof and rolls back',async()=>{
+ const pool=fakePool(sql=>sql.startsWith('SELECT l.id')?{rowCount:1,rows:[{status:'active',device_public_key:null,revision:0,order_status:'approved'}]}:{rowCount:1,rows:[]});
+ await assert.rejects(()=>new PostgresLicenseRepository(pool).activateLicense({licenseId:'license',devicePublicKey:'deviceA',verifyDeviceProof:()=>false}),/invalid_device_proof/);
+ assert.ok(!pool.calls.some(x=>x.sql.startsWith('UPDATE licenses')));
+});
