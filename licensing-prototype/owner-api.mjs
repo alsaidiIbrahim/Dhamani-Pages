@@ -6,7 +6,7 @@ export function createOwnerReadHandler({repository,authenticateOwner}){
  const paths=new Map([['/owner/orders','listOrders'],['/owner/licenses','listLicenses'],['/owner/events','listEvents']]);
  return async function handleOwnerRead(req,res){
   const respond=(status,body)=>{
-   res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
+   res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','x-frame-options':'DENY','content-security-policy':"default-src 'none'; frame-ancestors 'none'"});
    res.end(JSON.stringify(body));
   };
   try{
