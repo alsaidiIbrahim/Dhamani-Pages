@@ -5,6 +5,7 @@ const VERSION=1;
 export class PrototypeStore {
  constructor(path){this.path=resolve(path);}
  save(engine){
+  if(!engine.verifyAudit())throw Error('invalid_live_audit_chain');
   const state={version:VERSION,orders:[...engine.orders],licenses:[...engine.licenses],audit:engine.audit,auditHead:engine.auditHead};
   const folder=dirname(this.path);mkdirSync(folder,{recursive:true});
   const tmp=this.path+'.tmp';
