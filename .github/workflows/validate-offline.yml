@@ -52,6 +52,30 @@ jobs:
             await page.locator('#records button[data-action=edit]').first().click();
             await page.waitForTimeout(400);
             if(!await page.locator('#invoicePanel').isVisible())throw Error('Edit invoice panel not shown; status='+await page.locator('#status').innerText()+'; errors='+errors.join(' | '));
+            // Verify edited record persists after save and reload.
+            await page.locator('#product').fill('منتج معدل');
+            await page.locator('#form button[type=submit]').click();
+            await page.waitForTimeout(250);
+            await page.reload({waitUntil:'domcontentloaded'});
+            await page.locator('#records').getByText('منتج معدل').waitFor();
+            const original=await page.evaluate(async()=>new Promise((resolve,reject)=>{
+              const r=indexedDB.open('dhamani-offline-v1',1);
+              r.onsuccess=()=>{const t=r.result.transaction('receipts','readonly'),q=t.objectStore('receipts').getAll();q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)};
+              r.onerror=()=>reject(r.error)
+            }));
+            if(original.length!==1||original[0].product!=='منتج معدل')throw Error('Edited record not persisted');
+            // Verify attached image survives export and atomic import.
+            const pixel='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9mS7sAAAAASUVORK5CYII=';
+            const fixture={format:'dhamani-offline-v1',records:[{...original[0],id:'imported-test',product:'نسخة مستعادة',receipt:{name:'invoice.png',type:'image/png',data:pixel},attachments:[{name:'extra.png',type:'image/png',data:pixel}]}]};
+            await page.locator('#import').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+            page.once('dialog',d=>d.accept());
+            await page.waitForTimeout(400);
+            const restored=await page.evaluate(async()=>new Promise((resolve,reject)=>{
+              const r=indexedDB.open('dhamani-offline-v1',1);
+              r.onsuccess=()=>{const t=r.result.transaction('receipts','readonly'),q=t.objectStore('receipts').get('imported-test');q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)};
+              r.onerror=()=>reject(r.error)
+            }));
+            if(!restored||restored.receipt?.data!==pixel||restored.attachments?.[0]?.data!==pixel)throw Error('Backup restore lost receipt images');
             if(errors.length)throw Error('Browser errors: '+errors.join('; '));
             await browser.close();console.log('PASS: create, expiry, save, edit');
           })().catch(e=>{console.error(e);process.exit(1)});
