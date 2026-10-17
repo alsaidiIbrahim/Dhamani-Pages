@@ -37,6 +37,16 @@ export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore,rep
     const script=await readFile(new URL('./owner-local/login.js',import.meta.url),'utf8');
     res.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});res.end(script);return;
    }
+   if(req.method==='GET'&&req.url==='/owner/session'){
+    const principal=await authenticate(req);
+    if(!principal)return reply(res,403,{error:'forbidden'});
+    const cookies=String(req.headers?.cookie||'').split(';').map(x=>x.trim());
+    const cookie=cookies.find(x=>x.startsWith('dhamani_owner_session='));
+    const token=cookie?.slice('dhamani_owner_session='.length);
+    const expiresAt=sessionStore.expiresAt(token);
+    if(!expiresAt)return reply(res,403,{error:'forbidden'});
+    return reply(res,200,{authenticated:true,expiresAt});
+   }
    if(req.method==='GET'&&req.url==='/owner/csrf'){
     const principal=await authenticate(req);
     if(!principal)return reply(res,403,{error:'forbidden'});
