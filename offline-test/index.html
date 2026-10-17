@@ -49,8 +49,8 @@ function parseReceiptText(raw){
  if(/manufacturing defects|عيوب التصنيع/i.test(text))result.details='الضمان ضد عيوب التصنيع فقط. يرجى مراجعة الشروط والاستثناءات في الوثيقة الأصلية.';
  return result;
 }
-$('extractReceipt').onclick=async()=>{
- const file=$('receipt').files?.[0];if(!file){notify('اختر تصوير الفاتورة أو صورة محفوظة من نافذة الكاميرا.');$('receipt').click();return}
+async function extractSelectedReceipt(){
+ const file=$('receipt').files?.[0];if(!file){notify('اختر صورة فاتورة أولًا.');return}
  if(!file.type.startsWith('image/')){notify('قراءة OCR التجريبية تدعم صور الفواتير فقط، وليس PDF حاليًا.');return}
  const button=$('extractReceipt');button.disabled=true;notify('جارٍ قراءة الفاتورة محليًا؛ قد يستغرق الأمر بعض الوقت...');
  try{
@@ -60,13 +60,24 @@ $('extractReceipt').onclick=async()=>{
   $('ocrText').value=raw;
   if(!raw.trim())throw Error('لم يُستخرج نص واضح من الصورة.');
   const parsed=parseReceiptText(raw);
-  for(const [key,value] of Object.entries({merchant:parsed.merchant,country:parsed.country,governorate:parsed.governorate,wilayat:parsed.wilayat,phones:parsed.phones,date:parsed.date,warrantyMonths:parsed.months||'',price:parsed.price,serial:parsed.serial,warrantyNumber:parsed.warrantyNumber,details:parsed.details})){if(value&&!$(key).value)$(key).value=value}
+  for(const [key,value] of Object.entries({merchant:parsed.merchant,country:parsed.country,governorate:parsed.governorate,wilayat:parsed.wilayat,phones:parsed.phones,date:parsed.date,warrantyMonths:parsed.months||'',price:parsed.price,serial:parsed.serial,warrantyNumber:parsed.warrantyNumber,details:parsed.details})){if(value)$(key).value=value}
   updateExpiry();
   notify('اكتمل استخراج النص. راجع اسم المحل والأرقام والتاريخ والضمان وصحح أي أخطاء قبل الحفظ.');
  }catch(e){console.error('Receipt OCR:',e);notify('تعذر استخراج البيانات: '+(e?.message||String(e))+' — أرسل صورة رسالة الخطأ.')}
  finally{button.disabled=false}
-};
-$('receipt').addEventListener('change',()=>{if($('receipt').files?.[0])$('extractReceipt').click()});
+}
+
+let receiptProcessing=false;
+$('extractReceipt').onclick=()=>{if(receiptProcessing)return;$('receipt').value='';$('receipt').click()};
+$('receipt').addEventListener('change',async()=>{
+ if(!$('receipt').files?.[0]||receiptProcessing)return;
+ receiptProcessing=true;
+ const ids=['merchant','country','governorate','wilayat','phones','warrantyNumber','product','serial','price','currency','warrantyMonths','date','end','details','ocrText'];
+ for(const id of ids)$(id).value='';
+ notify('فاتورة جديدة: تم تفريغ حقول الفاتورة السابقة. جارٍ استخراج بيانات الصورة الجديدة...');
+ try{await extractSelectedReceipt()}finally{receiptProcessing=false}
+});
+
 const dayMs=86400000;
 function updateExpiry(){const date=$('date').value,months=Number($('warrantyMonths').value);if(!date||!Number.isInteger(months)||months<=0)return;const [y,m,d]=date.split('-').map(Number);const first=new Date(Date.UTC(y,m-1+months,1));const last=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate();first.setUTCDate(Math.min(d,last));$('end').value=first.toISOString().slice(0,10)}
 $('date').addEventListener('change',updateExpiry);$('warrantyMonths').addEventListener('input',updateExpiry);
