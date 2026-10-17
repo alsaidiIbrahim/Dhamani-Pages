@@ -4,11 +4,12 @@
 import {createHash,timingSafeEqual} from 'node:crypto';
 const hash=token=>createHash('sha256').update(token).digest();
 export class OwnerSessionStore {
- constructor({now=()=>Date.now()}={}){this.now=now;this.sessions=new Map();}
+ constructor({now=()=>Date.now(),maxLifetimeMs=8*60*60*1000}={}){if(!Number.isSafeInteger(maxLifetimeMs)||maxLifetimeMs<1000||maxLifetimeMs>24*60*60*1000)throw Error('invalid_max_lifetime');this.now=now;this.maxLifetimeMs=maxLifetimeMs;this.sessions=new Map();}
  add({token,ownerId,expiresAt,mfaVerified=false}){
-  if(typeof token!=='string'||token.length<32||typeof ownerId!=='string'||!ownerId||!Number.isFinite(expiresAt)||expiresAt<=this.now())throw Error('invalid_session');
+  if(typeof token!=='string'||token.length<32||typeof ownerId!=='string'||!ownerId||!Number.isFinite(expiresAt)||expiresAt<=this.now()||expiresAt-this.now()>this.maxLifetimeMs)throw Error('invalid_session');
   this.sessions.set(hash(token).toString('hex'),{ownerId,expiresAt,mfaVerified,revoked:false});
  }
+ cleanup(){let removed=0;for(const [key,entry] of this.sessions){if(entry.revoked||entry.expiresAt<=this.now()){this.sessions.delete(key);removed++;}}return removed;}
  revoke(token){
   if(typeof token!=='string')return false;
   const entry=this.sessions.get(hash(token).toString('hex'));
