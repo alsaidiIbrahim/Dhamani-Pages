@@ -2,6 +2,7 @@
 // TLS, CSRF defenses, persistent rate limits, secure secret storage, and
 // production-grade identity lifecycle are NOT implemented.
 import {createServer} from 'node:http';
+import {readFile} from 'node:fs/promises';
 import {ownerSessionAuthenticator} from './owner-session.mjs';
 import {createOwnerReadHandler} from './owner-api.mjs';
 function reply(res,status,body,headers={}){res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff',...headers});res.end(JSON.stringify(body));}
@@ -27,6 +28,12 @@ export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore,rep
     const site=req.headers?.['sec-fetch-site'];
     if(site!==undefined&&site!=='same-origin'&&site!=='none')return reply(res,403,{error:'forbidden'});
     if(req.headers?.['content-type']?.split(';')[0]?.trim().toLowerCase()!=='application/json')return reply(res,415,{error:'unsupported_media_type'});
+   }
+   if(req.method==='GET'&&req.url==='/owner/dashboard'){
+    const principal=await authenticate(req);
+    if(!principal)return reply(res,403,{error:'forbidden'});
+    const html=await readFile(new URL('./owner-local/index.html',import.meta.url),'utf8');
+    res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"});res.end(html);return;
    }
    if(readOwner&&req.method==='GET'&&['/owner/orders','/owner/licenses','/owner/events'].includes(req.url.split('?')[0]))return readOwner(req,res);
    if(req.method==='POST'&&req.url==='/owner/login/password'){
