@@ -9,8 +9,8 @@ export async function decodeImage(file){
 }
 export async function startCamera(video,callback){
  const reader=createReader();
- const controls=await reader.decodeFromVideoDevice(undefined,video,(result,error)=>{
-  if(result)callback(result.getText());
+ const controls=await reader.decodeFromVideoDevice(undefined,video,(result)=>{
+  if(result)callback(result.getText(),result.getBarcodeFormat());
  });
  return controls;
 }
