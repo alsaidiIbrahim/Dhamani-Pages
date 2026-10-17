@@ -25,6 +25,13 @@ CREATE TABLE IF NOT EXISTS owner_auth_challenges (
  CHECK (expires_at>created_at)
 );
 CREATE INDEX IF NOT EXISTS idx_owner_auth_challenges_expiry ON owner_auth_challenges(expires_at);
+-- Proposed shared replay state: enforce one accepted TOTP time step per owner across nodes.
+-- This is not yet connected to the owner login or TOTP verifier.
+CREATE TABLE IF NOT EXISTS owner_auth_totp_replay (
+ owner_id TEXT PRIMARY KEY,
+ last_accepted_step BIGINT NOT NULL CHECK (last_accepted_step >= 0),
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 -- Required before any deployment: transactional challenge consumption,
 -- atomic TOTP replay protection shared across nodes, owner credential vault,
 -- server-side idle expiration, lockout/rate limits, and cleanup jobs.
