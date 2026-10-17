@@ -26,6 +26,7 @@ const dayMs=86400000;
 function warrantyReminder(x){const start=new Date(x.date+'T12:00:00'),end=new Date(x.end+'T12:00:00');if(!Number.isFinite(+start)||!Number.isFinite(+end))return null;const months=(end.getFullYear()-start.getFullYear())*12+end.getMonth()-start.getMonth()+(end.getDate()-start.getDate())/31;const lead=months>36?30:months>12?14:months>1?7:0;const remaining=Math.ceil((end-Date.now())/dayMs);return {lead,remaining,due:lead>0&&remaining>=0&&remaining<=lead,expired:remaining<0};}
 async function lookup(){await ready;const code=$('lookup').value.trim().toLowerCase();const matches=code?(await all()).filter(x=>String(x.serial||'').trim().toLowerCase()===code):[];$('lookupResult').innerHTML=matches.length?matches.map(x=>'<div class="list-item"><b>'+esc(x.product)+'</b><p>المحل: '+esc(x.merchant)+'</p><p>بداية الضمان: '+esc(x.date)+'</p><p>نهاية الضمان: '+esc(x.end)+'</p></div>').join(''):'<p class="muted">لم يُعثر على ضمان مطابق لهذا الرمز.</p>'}
 let liveControls=null;
+let scannerDebug='';function scanLog(s){scannerDebug=s;const el=$('scannerDiagResult');if(el)el.textContent=(el.textContent||'')+'\n'+s;}
 $('scannerDiag').onclick=async()=>{const lines=[];const log=s=>{lines.push(s);$('scannerDiagResult').textContent=lines.join('\n')};log('Secure context: '+window.isSecureContext);log('MediaDevices: '+Boolean(navigator.mediaDevices?.getUserMedia));log('ZXing bundle: '+Boolean(window.ZXingOffline));log('Live reader: '+Boolean(window.ZXingOffline?.startCamera));log('Image reader: '+Boolean(window.ZXingOffline?.decodeImage));log('BarcodeDetector: '+('BarcodeDetector' in window));log('jsQR: '+(typeof jsQR));log('Video permissions must be granted after clicking scan.');};
 function beep(){try{const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return;const ctx=new AudioCtx(),osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';osc.frequency.value=1100;gain.gain.setValueAtTime(0.08,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.16);osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+0.16);osc.onended=()=>ctx.close()}catch(e){console.warn('Beep unavailable',e)}}
 function stopLive(){if(liveControls){liveControls.stop();liveControls=null}const v=$('scanVideo');if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null}$('liveScanner').hidden=true}
@@ -33,15 +34,15 @@ $('stopScan').onclick=stopLive;
 async function scanCode(target){
  if(window.ZXingOffline?.startCamera&&navigator.mediaDevices?.getUserMedia){
   try{
-   stopLive();$('liveScanner').hidden=false;notify('وجّه الكاميرا إلى الرمز...');
+   stopLive();$('liveScanner').hidden=false;notify('جارٍ تشغيل الكاميرا المباشرة...');scanLog('START live camera '+new Date().toISOString());
    let accepted=false;
    liveControls=await window.ZXingOffline.startCamera($('scanVideo'),async value=>{
     if(accepted||!value)return;accepted=true;
-    $(target).value=value.trim();beep();stopLive();
+    $(target).value=value.trim();scanLog('DECODE SUCCESS format length '+value.length);beep();stopLive();
     notify('تمت قراءة الرمز بنجاح: '+value+' — أكمل البيانات واضغط حفظ.');
     if(target==='lookup')await lookup();
-   });return;
-  }catch(err){stopLive();notify('تعذر تشغيل المسح المباشر: '+err.message+'؛ سيتم فتح التصوير كبديل.');}
+   });scanLog('STREAM READY '+$('scanVideo').videoWidth+'x'+$('scanVideo').videoHeight);notify('الكاميرا تعمل. قرّب الرمز داخل الإطار وثبّت الهاتف.');return;
+  }catch(err){scanLog('STREAM ERROR: '+err.name+': '+err.message);stopLive();notify('تعذر تشغيل المسح المباشر: '+err.message+'؛ سيتم فتح التصوير كبديل.');}
  }
 
  const input=$('barcodePhoto');
