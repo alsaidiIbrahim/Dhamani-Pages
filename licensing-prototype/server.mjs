@@ -21,7 +21,8 @@ export function createPrototypeServer({engine=new LicenseEngine(),adminToken}={}
   const routes={
    'POST /orders':{admin:false,run:b=>engine.order()},
    'POST /admin/approve':{admin:true,run:b=>engine.approve(b.orderId)},
-   'POST /admin/transfer':{admin:true,run:b=>engine.transfer(b.licenseId,b.devicePublicKey)},
+   'POST /admin/transfer-challenge':{admin:true,run:b=>engine.issueTransferChallenge(b.licenseId,b.devicePublicKey)},
+   'POST /admin/transfer-complete':{admin:true,run:b=>engine.completeTransferChallenge(b.licenseId,b.challengeId,b.signature)},
    'POST /admin/suspend':{admin:true,run:b=>{engine.suspend(b.licenseId);return {ok:true}}},
    'POST /challenge':{admin:false,run:b=>engine.issueChallenge(b.activationToken,b.devicePublicKey,b.purpose)},
    'POST /complete':{admin:false,run:b=>engine.completeChallenge(b.activationToken,b.challengeId,b.signature)}
