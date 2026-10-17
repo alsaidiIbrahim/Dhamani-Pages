@@ -9,7 +9,7 @@ test('approval commits order, license and audit together',async()=>{
  const pool=fakePool(sql=>sql.startsWith('UPDATE license_orders')?{rowCount:1,rows:[{id:'order'}]}:sql.startsWith('INSERT INTO licenses')?{rowCount:1,rows:[{id:'license'}]}:{rowCount:1,rows:[]});
  const result=await new PostgresLicenseRepository(pool).approveOrder({orderId:'order',adminId:'owner',licenseId:'license',activationTokenHash:Buffer.alloc(32)});
  assert.equal(result.licenseId,'license');
- assert.deepEqual(pool.calls.map(c=>c.sql==='BEGIN'||c.sql==='COMMIT'||c.sql==='RELEASE'?c.sql:c.sql.split(' ').slice(0,3).join(' ')),['BEGIN','UPDATE license_orders','INSERT INTO licenses(id,order_id,activation_token_hash)','INSERT INTO license_events(order_id,license_id,actor_id,action)','COMMIT','RELEASE']);
+ assert.deepEqual(pool.calls.map(c=>c.sql==='BEGIN'||c.sql==='COMMIT'||c.sql==='RELEASE'?c.sql:c.sql.split(' ').slice(0,3).join(' ')),['BEGIN','UPDATE license_orders SET','INSERT INTO licenses(id,order_id,activation_token_hash)','INSERT INTO license_events(order_id,license_id,actor_id,action)','COMMIT','RELEASE']);
 });
 test('failed license creation rolls back approval',async()=>{
  const pool=fakePool(sql=>{if(sql.startsWith('UPDATE license_orders'))return {rowCount:1,rows:[{id:'order'}]};throw Error('unique_violation')});
