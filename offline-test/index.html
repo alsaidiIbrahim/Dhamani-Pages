@@ -191,7 +191,16 @@ async function readInvoiceText(file){
  bctx.drawImage(prepared,0,0,prepared.width,Math.max(1,Math.round(prepared.height*.17)),0,0,banner.width,banner.height);
  const bannerRead=await ocrWorker.recognize(banner);
  const bannerText=(bannerRead.data.text||'').trim();
- let combined=[bannerText,headerText,best].filter(Boolean).join('\n');
+ // Dark mastheads with white Arabic lettering need an inverted, high-contrast OCR pass.
+ const inverted=document.createElement('canvas');inverted.width=banner.width;inverted.height=banner.height;
+ const ictx=inverted.getContext('2d',{willReadFrequently:true});ictx.drawImage(banner,0,0);
+ const imageData=ictx.getImageData(0,0,inverted.width,inverted.height);
+ for(let i=0;i<imageData.data.length;i+=4){const p=imageData.data;const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];const v=lum>135?0:255;p[i]=p[i+1]=p[i+2]=v;}
+ ictx.putImageData(imageData,0,0);
+ notify('جارٍ قراءة اسم المحل من الترويسة الداكنة...');
+ const invertedRead=await ocrWorker.recognize(inverted);
+ const invertedText=(invertedRead.data.text||'').trim();
+ let combined=[invertedText,bannerText,headerText,best].filter(Boolean).join('\n');
  if(!/(?:المجموع\s*الكلي|grand\s*total|amount\s*due).{0,80}\d{1,6}[.,]\d{2,3}/i.test(combined)){
   notify('جارٍ تدقيق منطقة المبلغ الإجمالي في أسفل الفاتورة...');
   const bottom=document.createElement('canvas');bottom.width=prepared.width;bottom.height=Math.max(1,Math.round(prepared.height*.5));
