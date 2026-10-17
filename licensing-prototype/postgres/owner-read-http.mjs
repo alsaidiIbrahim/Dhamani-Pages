@@ -10,7 +10,7 @@ export function createPostgresOwnerReadHttpHandler({sessionRepository,licenseRep
  const authenticateOwner=ownerSessionAuthenticator(sessions);
  const readOwner=createOwnerReadHandler({repository:licenseRepository,authenticateOwner});
  return async(req,res)=>{
-  const respond=(status,body)=>{res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});res.end(JSON.stringify(body));};
+  const respond=(status,body)=>{res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','x-frame-options':'DENY','content-security-policy':"default-src 'none'; frame-ancestors 'none'"});res.end(JSON.stringify(body));};
   try{
    const host=req.headers?.host;
    if(typeof host!=='string'||host!==`127.0.0.1:${req.socket?.localPort}`)return respond(403,{error:'forbidden'});
@@ -19,6 +19,9 @@ export function createPostgresOwnerReadHttpHandler({sessionRepository,licenseRep
    const site=req.headers?.['sec-fetch-site'];
    if(site!==undefined&&site!=='same-origin'&&site!=='none')return respond(403,{error:'forbidden'});
    if(req.method!=='GET')return respond(405,{error:'method_not_allowed'});
+   if(req.headers?.['transfer-encoding']!==undefined||req.headers?.['content-length']!==undefined&&req.headers['content-length']!=='0')return respond(400,{error:'invalid_request'});
+   if(typeof req.headers?.cookie==='string'&&req.headers.cookie.length>4096)return respond(403,{error:'forbidden'});
+   if(typeof req.url!=='string'||req.url.length>2048)return respond(414,{error:'uri_too_long'});
    if(!['/owner/orders','/owner/licenses','/owner/events'].includes(String(req.url||'').split('?')[0]))return respond(404,{error:'not_found'});
    return await readOwner(req,res);
   }catch{return respond(500,{error:'internal_error'});}
