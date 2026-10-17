@@ -2,11 +2,11 @@
 <html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0b6e4f"><title>ضماني — دفتر دون إنترنت</title><link rel="stylesheet" href="./styles.css"><link rel="manifest" href="./manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"></head>
 <body><header class="topbar"><div class="brand"><span class="logo">✓</span><div><strong>ضماني</strong><small>دفتر محلي دون إنترنت</small></div></div><span class="muted">نسخة اختبار مستقلة</span></header>
 <main class="view"><h2>فواتيري المحلية</h2><p class="muted">تُحفظ هذه البيانات على هذا الجهاز فقط. لا توجد مزامنة مع حسابك السحابي بعد. احتفظ بنسخة احتياطية، ولا تحذف بيانات المتصفح.</p>
-<div id="status" role="status" class="muted"></div><div class="card"><h3>فحص الماسح على iPhone</h3><button id="scannerDiag" type="button" class="btn secondary">تشخيص الكاميرا والقارئ</button><pre id="scannerDiagResult" style="white-space:pre-wrap;direction:ltr;text-align:left;font-size:12px"></pre></div><div id="liveScanner" class="card" hidden><h3>ماسح ضماني المباشر</h3><video id="scanVideo" autoplay playsinline muted style="width:100%;max-height:340px;background:#111;border-radius:12px;object-fit:contain"></video><p class="muted">وجّه الكاميرا إلى QR أو الباركود الخطي وثبّتها قليلًا. سيصدر صوت عند نجاح القراءة.</p><button id="stopScan" type="button" class="btn secondary">إغلاق الماسح</button></div>
+<div id="status" role="status" class="muted"></div><div class="card"><h3>فحص الماسح على iPhone</h3><button id="scannerDiag" type="button" class="btn secondary">تشخيص الكاميرا والقارئ</button><pre id="scannerDiagResult" style="white-space:pre-wrap;direction:ltr;text-align:left;font-size:12px"></pre></div>
 <div class="card"><h3>إضافة فاتورة محلية</h3><form id="form">
 <label for="merchant">المحل</label><input id="merchant" required maxlength="150">
 <label for="country">الدولة</label><input id="country" maxlength="100"><label for="governorate">المحافظة</label><input id="governorate" maxlength="100"><label for="wilayat">الولاية</label><input id="wilayat" maxlength="100"><label for="phones">أرقام هواتف المحل</label><input id="phones" type="tel" maxlength="150"><label for="product">اسم المنتج</label><input id="product" required maxlength="150">
-<label for="serial">الرقم التسلسلي أو الباركود</label><input id="serial" maxlength="150" autocomplete="off"><button class="btn secondary" type="button" id="scan">مسح باركود بالكاميرا</button><button class="btn secondary" type="button" id="scanQR">مسح QR مخصص</button><input id="barcodePhoto" type="file" accept="image/*" capture="environment" hidden><p class="muted">إذا لم يدعم المتصفح قراءة الباركود، يمكنك إدخال الرقم المكتوب على الجهاز يدويًا.</p>
+<label for="serial">الرقم التسلسلي أو الباركود</label><input id="serial" maxlength="150" autocomplete="off"><button class="btn secondary" type="button" id="scan">مسح باركود بالكاميرا</button><button class="btn secondary" type="button" id="scanQR">مسح QR مخصص</button><div id="liveScanner" class="card" hidden><h3>ماسح ضماني المباشر</h3><video id="scanVideo" autoplay playsinline muted style="width:100%;max-height:340px;background:#111;border-radius:12px;object-fit:contain"></video><p class="muted">وجّه الكاميرا إلى QR أو الباركود الخطي وثبّتها قليلًا. سيصدر صوت عند نجاح القراءة.</p><button id="stopScan" type="button" class="btn secondary">إغلاق الماسح</button></div><input id="barcodePhoto" type="file" accept="image/*" capture="environment" hidden><p class="muted">إذا لم يدعم المتصفح قراءة الباركود، يمكنك إدخال الرقم المكتوب على الجهاز يدويًا.</p>
 <label for="price">سعر الشراء</label><input id="price" type="number" min="0" step="0.001"><label for="currency">العملة</label><input id="currency" maxlength="10" placeholder="OMR"><label for="warrantyMonths">مدة الضمان بالأشهر</label><input id="warrantyMonths" type="number" min="0" max="600" step="1" placeholder="مثال: 12"><label for="date">تاريخ الشراء</label><input id="date" type="date" required>
 <label for="end">انتهاء الضمان (يُحسب تلقائيًا عند إدخال المدة)</label><input id="end" type="date" required><label for="details">تفاصيل إضافية وشروط الضمان</label><textarea id="details" rows="3"></textarea>
 <label for="receipt">صورة الفاتورة الأصلية (اختياري)</label><input id="receipt" type="file" accept="image/*,application/pdf" capture="environment"><button class="btn secondary" type="button" id="extractReceipt">استخراج بيانات الفاتورة تلقائيًا (تجريبي)</button><p class="muted">راجع البيانات المستخرجة وصححها قبل الحفظ. صورة الفاتورة الأصلية تُحفظ كما هي. قد يستغرق تحميل محرك OCR بعض الوقت في أول استخدام.</p><textarea id="ocrText" rows="5" readonly placeholder="النص المستخرج من الفاتورة سيظهر هنا للمراجعة"></textarea>
@@ -41,7 +41,7 @@ $('extractReceipt').onclick=async()=>{
  if(!file.type.startsWith('image/')){notify('قراءة OCR التجريبية تدعم صور الفواتير فقط، وليس PDF حاليًا.');return}
  const button=$('extractReceipt');button.disabled=true;notify('جارٍ قراءة الفاتورة محليًا؛ قد يستغرق الأمر بعض الوقت...');
  try{
-  if(!window.Tesseract)throw Error('لم يتم تحميل محرك OCR؛ حدّث الصفحة بعد اكتمال النشر.');
+  if(!window.Tesseract)throw Error('محرك OCR غير متاح. تأكد من اتصال التحميل الأول ثم أعد فتح الصفحة.');
   if(!ocrWorker)ocrWorker=await Tesseract.createWorker('ara+eng',1,{workerPath:'./ocr/worker.min.js',corePath:'./ocr/tesseract-core-simd-lstm.wasm.js',langPath:'./ocr/',gzip:true});
   const result=await ocrWorker.recognize(file);const raw=result.data.text||'';
   $('ocrText').value=raw;
@@ -67,7 +67,7 @@ $('stopScan').onclick=stopLive;
 async function scanCode(target,qrOnly=false){
  if(window.ZXingOffline?.startCamera&&navigator.mediaDevices?.getUserMedia){
   try{
-   stopLive();$('liveScanner').hidden=false;notify('جارٍ تشغيل الكاميرا المباشرة...');scanLog('START live camera '+(qrOnly?'QR ONLY ':'ALL ') +new Date().toISOString());
+   stopLive();$('liveScanner').hidden=false;$('liveScanner').scrollIntoView({behavior:'smooth',block:'center'});notify('جارٍ تشغيل الكاميرا المباشرة...');scanLog('START live camera '+(qrOnly?'QR ONLY ':'ALL ') +new Date().toISOString());
    let accepted=false;
    liveControls=await window.ZXingOffline.startCamera($('scanVideo'),async (value,format)=>{
     if(accepted||!value)return;accepted=true;
