@@ -175,7 +175,15 @@ async function readInvoiceText(file){
  top.getContext('2d').drawImage(prepared,0,0,prepared.width,top.height,0,0,top.width,top.height);
  const header=await ocrWorker.recognize(top);
  const headerText=(header.data.text||'').trim();
- return headerText&&receiptTextScore(headerText)>5?headerText+'\n'+best:best;
+ let combined=headerText&&receiptTextScore(headerText)>5?headerText+'\n'+best:best;
+ if(!/(?:المجموع\s*الكلي|grand\s*total|amount\s*due).{0,80}\d{1,6}[.,]\d{2,3}/i.test(combined)){
+  notify('جارٍ تدقيق منطقة المبلغ الإجمالي في أسفل الفاتورة...');
+  const bottom=document.createElement('canvas');bottom.width=prepared.width;bottom.height=Math.max(1,Math.round(prepared.height*.5));
+  bottom.getContext('2d').drawImage(prepared,0,prepared.height-bottom.height,prepared.width,bottom.height,0,0,bottom.width,bottom.height);
+  const amountPass=await ocrWorker.recognize(bottom);
+  const amountText=(amountPass.data.text||'').trim();if(amountText)combined+='\n'+amountText;
+ }
+ return combined;
 }
 async function prepareReceiptForOCR(file){
  const bitmap=await createImageBitmap(file);
