@@ -31,7 +31,7 @@
 <label for="extraReceipts">صور إضافية لنفس الفاتورة (اختياري)</label><input id="extraReceipts" type="file" accept="image/*,application/pdf" multiple><p class="muted">يمكن إرفاق صور متعددة لنفس الضمان؛ تُحفظ الملفات الأصلية مع السجل.</p><button class="btn block" type="submit">حفظ الفاتورة</button></form></div>
 <div class="card"><details><summary>تشخيص الكاميرا والقارئ</summary><button id="scannerDiag" type="button" class="btn secondary">تشخيص الكاميرا والقارئ</button><pre id="scannerDiagResult" style="white-space:pre-wrap;direction:ltr;text-align:left;font-size:12px"></pre></details></div>
 <div class="card"><h3>استرجاع الضمان بمسح الجهاز</h3><input id="lookup" placeholder="امسح أو اكتب السيريل نمبر / الباركود"><button class="btn secondary" type="button" id="lookupScan">مسح الرمز</button><div id="lookupResult" role="status"></div></div><div class="card"><h3>الضمانات التي تحتاج متابعة</h3><div id="reminders"></div></div><div class="card"><div class="row"><h3>مكتبة الفواتير — الأحدث أولًا</h3><span id="count"></span></div><input id="search" placeholder="بحث عن محل أو منتج أو رقم"><div id="records"></div></div>
-<div class="card"><h3>الأرشيف — 30 يومًا بعد انتهاء الضمان</h3><div id="archive"></div></div><div id="receiptDetails" class="card" hidden><h3>تفاصيل الفاتورة المحددة</h3><div id="receiptDetailsContent"></div><button class="btn secondary" id="closeReceiptDetails" type="button">إغلاق التفاصيل</button></div><div class="card"><h3>النسخ الاحتياطي</h3><p class="muted">مهم على iPhone: لا تضمن Safari الاحتفاظ بالبيانات المحلية إلى الأبد. صدّر نسخة JSON دورياً إلى تطبيق الملفات أو iCloud Drive، وتحقق من وجود الملف. لا تعتمد على النسخة المحلية وحدها.</p><button class="btn secondary" id="export" type="button">تصدير JSON</button><p class="muted">النسخة تشمل الصور وقد تكون كبيرة. استورد الملفات فقط من مصدر موثوق.</p><input id="import" type="file" accept="application/json,.json" aria-label="استيراد نسخة احتياطية"></div>
+<div class="card"><h3>الأرشيف — 30 يومًا بعد انتهاء الضمان</h3><div id="archive"></div></div><div id="receiptDetails" class="card" hidden><h3>تفاصيل الفاتورة المحددة</h3><div id="receiptDetailsContent"></div><button class="btn secondary" id="closeReceiptDetails" type="button">إغلاق التفاصيل</button></div><div class="card"><h3>النسخ الاحتياطي</h3><p class="muted">مهم على iPhone: لا تضمن Safari الاحتفاظ بالبيانات المحلية إلى الأبد. صدّر نسخة JSON دورياً إلى تطبيق الملفات أو iCloud Drive، وتحقق من وجود الملف. لا تعتمد على النسخة المحلية وحدها.</p><button class="btn secondary" id="export" type="button">تصدير JSON</button><p class="muted">النسخة تشمل الصور وقد تكون كبيرة. استورد الملفات فقط من مصدر موثوق.</p><input id="import" type="file" accept="application/json,.json" aria-label="استيراد نسخة احتياطية"><div id="importReview" class="card" hidden><p id="importSummary" role="status"></p><button id="importConfirm" class="btn" type="button">تأكيد استيراد النسخة</button> <button id="importCancel" class="btn secondary" type="button">إلغاء</button></div></div>
 </main><script>
 'use strict';
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -358,29 +358,52 @@ $('closeReceiptDetails').onclick=()=>$('receiptDetails').hidden=true;
 $('records').onclick=recordAction;$('archive').onclick=recordAction;
 $('search').oninput=()=>render().catch(e=>notify(e.message));
 $('export').onclick=async()=>{await ready;saveBlob(JSON.stringify({format:'dhamani-offline-v1',records:await all()}),'dhamani-local-backup.json');notify('تم بدء تنزيل النسخة الاحتياطية. افتح تطبيق الملفات وتحقق من حفظ ملف dhamani-local-backup.json قبل الاعتماد عليه.')};
-$('import').onchange=async e=>{try{
- await ready;const f=e.target.files[0];if(!f)return;
- if(f.size>200*1024*1024)throw Error('حجم النسخة الاحتياطية يتجاوز 200 ميجابايت');
- const obj=JSON.parse(await f.text());
- if(obj.format!=='dhamani-offline-v1'||!Array.isArray(obj.records)||obj.records.length>5000)throw Error('صيغة النسخة الاحتياطية غير صحيحة');
- const ids=new Set();
- for(const x of obj.records){
-  if(!x||typeof x.id!=='string'||!x.id||ids.has(x.id)||typeof x.merchant!=='string'||typeof x.product!=='string'||typeof x.created!=='string')throw Error('بيانات السجلات غير صالحة أو مكررة');
-  ids.add(x.id);
-  for(const file of [x.receipt,...(Array.isArray(x.attachments)?x.attachments:[])]){
-   if(file&&(!file.data||typeof file.data!=='string'||!/^data:(image\/(png|jpeg|webp|gif)|application\/pdf);base64,/i.test(file.data)))throw Error('أحد المرفقات غير صالح');
+let pendingImport=null;
+function resetImportReview(){pendingImport=null;$('importReview').hidden=true;$('importSummary').textContent='';$('import').value=''}
+$('importCancel').onclick=resetImportReview;
+$('import').onchange=async e=>{
+ const f=e.target.files?.[0];
+ resetImportReview();
+ try{
+  await ready;
+  if(!f)return;
+  if(f.size>200*1024*1024)throw Error('حجم النسخة الاحتياطية يتجاوز 200 ميجابايت');
+  const obj=JSON.parse(await f.text());
+  if(obj.format!=='dhamani-offline-v1'||!Array.isArray(obj.records)||obj.records.length>5000)throw Error('صيغة النسخة الاحتياطية غير صحيحة');
+  const ids=new Set();
+  for(const x of obj.records){
+   if(!x||typeof x.id!=='string'||!x.id||ids.has(x.id)||typeof x.merchant!=='string'||typeof x.product!=='string'||typeof x.created!=='string')throw Error('بيانات السجلات غير صالحة أو مكررة');
+   ids.add(x.id);
+   for(const file of [x.receipt,...(Array.isArray(x.attachments)?x.attachments:[])]){
+    if(file&&(!file.data||typeof file.data!=='string'||!/^data:(image\/(png|jpeg|webp|gif)|application\/pdf);base64,/i.test(file.data)))throw Error('أحد المرفقات غير صالح');
+   }
   }
- }
- const current=await all(),existing=new Set(current.map(x=>x.id));
- const duplicates=obj.records.filter(x=>existing.has(x.id)).length;
- if(!confirm('استيراد '+obj.records.length+' سجل؟ يوجد '+duplicates+' سجل بالمعرّف نفسه؛ ستُستبدل بياناته. تأكد من نسخة احتياطية حديثة قبل المتابعة.'))return;
- await new Promise((resolve,reject)=>{
-  const t=db.transaction('receipts','readwrite'),s=t.objectStore('receipts');
-  for(const x of obj.records)s.put(x);
-  t.oncomplete=resolve;t.onerror=()=>reject(t.error);t.onabort=()=>reject(t.error||Error('تم إلغاء العملية'));
- });
- notify('اكتمل الاستيراد بنجاح: '+obj.records.length+' سجل.');await render();
- }catch(err){notify('فشل الاستيراد دون اعتماد استيراد جزئي: '+err.message)}finally{e.target.value=''}};
+  const existing=new Set((await all()).map(x=>x.id));
+  const duplicates=obj.records.filter(x=>existing.has(x.id)).length;
+  $('importConfirm').hidden=false;
+  pendingImport={records:obj.records};
+  $('importSummary').textContent='الملف: '+f.name+' — عدد السجلات: '+obj.records.length+' — السجلات الموجودة بنفس المعرّف: '+duplicates+'. سيتم استبدال السجلات المتطابقة فقط. احتفظ بنسخة احتياطية أخرى قبل التأكيد.';
+  $('importReview').hidden=false;
+  $('importReview').scrollIntoView({block:'nearest'});
+ }catch(err){notify('تعذر تجهيز الاستيراد: '+err.message);$('importSummary').textContent='تعذر قراءة الملف: '+err.message;$('importReview').hidden=false;$('importConfirm').hidden=true;}
+};
+$('importConfirm').onclick=async()=>{
+ if(!pendingImport)return;
+ const records=pendingImport.records;
+ $('importConfirm').disabled=true;
+ try{
+  await ready;
+  await new Promise((resolve,reject)=>{
+   const t=db.transaction('receipts','readwrite'),s=t.objectStore('receipts');
+   for(const x of records)s.put(x);
+   t.oncomplete=resolve;t.onerror=()=>reject(t.error);t.onabort=()=>reject(t.error||Error('تم إلغاء العملية'));
+  });
+  resetImportReview();
+  notify('اكتمل الاستيراد بنجاح: '+records.length+' سجل.');
+  await render();
+ }catch(err){notify('فشل الاستيراد: '+err.message);$('importSummary').textContent='فشل الاستيراد: '+err.message;}
+ finally{$('importConfirm').disabled=false;}
+};
 
 ready.then(render).catch(e=>notify('تعذر فتح التخزين المحلي: '+e.message));
 </script><script src="./ocr/pdf.min.js"></script><script src="./ocr/tesseract.min.js"></script><script src="./zxing.min.js"></script><script src="./jsQR.min.js"></script><script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("SW unavailable",e)));</script></body></html>
