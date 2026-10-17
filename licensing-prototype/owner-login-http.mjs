@@ -28,7 +28,7 @@ export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore,rep
     if(site!==undefined&&site!=='same-origin'&&site!=='none')return reply(res,403,{error:'forbidden'});
     if(req.headers?.['content-type']?.split(';')[0]?.trim().toLowerCase()!=='application/json')return reply(res,415,{error:'unsupported_media_type'});
    }
-   if(readOwner&&req.method==='GET'&&/^\\/owner\\/(orders|licenses|events)(?:\\?|$)/.test(req.url))return readOwner(req,res);
+   if(readOwner&&req.method==='GET'&&['/owner/orders','/owner/licenses','/owner/events'].includes(req.url.split('?')[0]))return readOwner(req,res);
    if(req.method==='POST'&&req.url==='/owner/login/password'){
     const body=await jsonBody(req);
     const result=login.verifyFirstFactor(body.password);
