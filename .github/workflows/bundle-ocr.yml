@@ -25,10 +25,10 @@ jobs:
           cp node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm offline-test/ocr/
           cp node_modules/tesseract.js-core/tesseract-core-lstm.wasm.js offline-test/ocr/
           cp node_modules/tesseract.js-core/tesseract-core-lstm.wasm offline-test/ocr/
-          curl --fail --location --retry 3 -o offline-test/ocr/ara.traineddata.gz https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/ara.traineddata
-          curl --fail --location --retry 3 -o offline-test/ocr/eng.traineddata.gz https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/eng.traineddata
-          gzip -f offline-test/ocr/ara.traineddata.gz
-          gzip -f offline-test/ocr/eng.traineddata.gz
+          curl --fail --location --retry 3 -o offline-test/ocr/ara.traineddata https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/ara.traineddata
+          curl --fail --location --retry 3 -o offline-test/ocr/eng.traineddata https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/eng.traineddata
+          gzip -f offline-test/ocr/ara.traineddata
+          gzip -f offline-test/ocr/eng.traineddata
       - name: Commit runtime
         run: |
           git config user.name "github-actions[bot]"
