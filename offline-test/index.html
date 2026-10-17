@@ -42,7 +42,7 @@ $('extractReceipt').onclick=async()=>{
  const button=$('extractReceipt');button.disabled=true;notify('جارٍ قراءة الفاتورة محليًا؛ قد يستغرق الأمر بعض الوقت...');
  try{
   if(!window.Tesseract)throw Error('محرك OCR غير متاح. تأكد من اتصال التحميل الأول ثم أعد فتح الصفحة.');
-  if(!ocrWorker)ocrWorker=await Tesseract.createWorker('ara+eng',1,{workerPath:'./ocr/worker.min.js',corePath:'./ocr/tesseract-core-simd-lstm.wasm.js',langPath:'./ocr/',gzip:true});
+  if(!ocrWorker)ocrWorker=await Tesseract.createWorker('ara+eng',1,{workerPath:new URL('./ocr/worker.min.js',location.href).href,corePath:new URL('./ocr/tesseract-core-simd-lstm.wasm.js',location.href).href,langPath:new URL('./ocr/',location.href).href,gzip:true});
   const result=await ocrWorker.recognize(file);const raw=result.data.text||'';
   $('ocrText').value=raw;
   if(!raw.trim())throw Error('لم يُستخرج نص واضح من الصورة.');
@@ -50,7 +50,7 @@ $('extractReceipt').onclick=async()=>{
   for(const [key,value] of Object.entries({merchant:parsed.merchant,phones:parsed.phones,date:parsed.date,warrantyMonths:parsed.months||'',price:parsed.price,serial:parsed.serial})){if(value&&!$(key).value)$(key).value=value}
   updateExpiry();
   notify('اكتمل استخراج النص. راجع اسم المحل والأرقام والتاريخ والضمان وصحح أي أخطاء قبل الحفظ.');
- }catch(e){notify('تعذر استخراج البيانات: '+e.message)}
+ }catch(e){console.error('Receipt OCR:',e);notify('تعذر استخراج البيانات: '+(e?.message||String(e))+' — أرسل صورة رسالة الخطأ.')}
  finally{button.disabled=false}
 };
 const dayMs=86400000;
@@ -60,7 +60,7 @@ function warrantyReminder(x){const start=new Date(x.date+'T12:00:00'),end=new Da
 async function lookup(){await ready;const code=$('lookup').value.trim().toLowerCase();const matches=code?(await all()).filter(x=>String(x.serial||'').trim().toLowerCase()===code):[];$('lookupResult').innerHTML=matches.length?matches.map(x=>'<div class="list-item"><b>'+esc(x.product)+'</b><p>المحل: '+esc(x.merchant)+'</p><p>بداية الضمان: '+esc(x.date)+'</p><p>نهاية الضمان: '+esc(x.end)+'</p></div>').join(''):'<p class="muted">لم يُعثر على ضمان مطابق لهذا الرمز.</p>'}
 let liveControls=null;let qrTimer=null;let qrBusy=false;
 let scannerDebug='';function scanLog(s){scannerDebug=s;const el=$('scannerDiagResult');if(el)el.textContent=(el.textContent||'')+'\n'+s;}
-$('scannerDiag').onclick=async()=>{const lines=[];const log=s=>{lines.push(s);$('scannerDiagResult').textContent=lines.join('\n')};log('Secure context: '+window.isSecureContext);log('MediaDevices: '+Boolean(navigator.mediaDevices?.getUserMedia));log('ZXing bundle: '+Boolean(window.ZXingOffline));log('Live reader: '+Boolean(window.ZXingOffline?.startCamera));log('Image reader: '+Boolean(window.ZXingOffline?.decodeImage));log('BarcodeDetector: '+('BarcodeDetector' in window));log('jsQR: '+(typeof jsQR));log('Video permissions must be granted after clicking scan.');};
+$('scannerDiag').onclick=async()=>{const lines=[];const log=s=>{lines.push(s);$('scannerDiagResult').textContent=lines.join('\n')};log('Secure context: '+window.isSecureContext);log('MediaDevices: '+Boolean(navigator.mediaDevices?.getUserMedia));log('ZXing bundle: '+Boolean(window.ZXingOffline));log('Live reader: '+Boolean(window.ZXingOffline?.startCamera));log('Image reader: '+Boolean(window.ZXingOffline?.decodeImage));log('BarcodeDetector: '+('BarcodeDetector' in window));log('jsQR: '+(typeof jsQR));log('Tesseract OCR: '+Boolean(window.Tesseract));log('Video permissions must be granted after clicking scan.');};
 function beep(){try{const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return;const ctx=new AudioCtx(),osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';osc.frequency.value=1100;gain.gain.setValueAtTime(0.08,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.16);osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+0.16);osc.onended=()=>ctx.close()}catch(e){console.warn('Beep unavailable',e)}}
 function stopLive(){if(qrTimer){clearInterval(qrTimer);qrTimer=null}qrBusy=false;if(liveControls){liveControls.stop();liveControls=null}const v=$('scanVideo');if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null}$('liveScanner').hidden=true}
 $('stopScan').onclick=stopLive;
