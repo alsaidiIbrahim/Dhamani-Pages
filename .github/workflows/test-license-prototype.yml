@@ -14,4 +14,4 @@ jobs:
         with:
           node-version: '22'
       - name: Test license engine
-        run: node --test licensing-prototype/engine.test.mjs
+        run: node --test licensing-prototype/*.test.mjs
