@@ -6,13 +6,22 @@
 <title>ضماني | نموذج لوحة المالك</title>
 <style>
 :root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light}
-*{box-sizing:border-box}body{margin:0;background:#f2f6fa;color:#132a40}header{background:#112d4e;color:#fff;padding:24px max(20px,calc((100vw - 1120px)/2))}header h1{margin:0 0 8px;font-size:1.5rem}header p{margin:0;color:#d4e2f0}main{max-width:1120px;margin:auto;padding:24px 16px}.notice{background:#fff6dc;border-right:5px solid #b7791f;padding:14px;border-radius:8px;margin-bottom:20px}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.stat{background:white;border-radius:12px;padding:18px;box-shadow:0 1px 6px #19304714}.stat strong{display:block;font-size:1.8rem;margin-top:8px}section{background:white;border-radius:12px;margin-top:20px;padding:18px;box-shadow:0 1px 6px #19304714}h2{font-size:1.12rem;margin:0 0 12px}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;min-width:590px}th,td{padding:12px;text-align:right;border-bottom:1px solid #e5eaf0}th{background:#eef3f8}.status{font-weight:700}.ok{color:#17683d}.pending{color:#96600a}.off{color:#9c3333}footer{padding:18px;text-align:center;color:#516679;font-size:.9rem}button{background:#112d4e;color:white;border:0;border-radius:7px;padding:8px 12px;cursor:pointer}button:focus-visible{outline:3px solid #e1aa35}
+*{box-sizing:border-box}body{margin:0;background:#f2f6fa;color:#132a40}header{background:#112d4e;color:#fff;padding:24px max(20px,calc((100vw - 1120px)/2))}header h1{margin:0 0 8px;font-size:1.5rem}header p{margin:0;color:#d4e2f0}main{max-width:1120px;margin:auto;padding:24px 16px}.notice{background:#fff6dc;border-right:5px solid #b7791f;padding:14px;border-radius:8px;margin-bottom:20px}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.stat{background:white;border-radius:12px;padding:18px;box-shadow:0 1px 6px #19304714}.stat strong{display:block;font-size:1.8rem;margin-top:8px}section{background:white;border-radius:12px;margin-top:20px;padding:18px;box-shadow:0 1px 6px #19304714}h2{font-size:1.12rem;margin:0 0 12px}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;min-width:590px}th,td{padding:12px;text-align:right;border-bottom:1px solid #e5eaf0}th{background:#eef3f8}.status{font-weight:700}.ok{color:#17683d}.pending{color:#96600a}.off{color:#9c3333}footer{padding:18px;text-align:center;color:#516679;font-size:.9rem}button{background:#112d4e;color:white;border:0;border-radius:7px;padding:8px 12px;cursor:pointer}button:focus-visible{outline:3px solid #e1aa35}.security{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.security article{border:1px solid #dce5ef;border-radius:10px;padding:14px;background:#f8fbff}.security strong{display:block;margin-bottom:6px}.security p{margin:0;color:#41576a;line-height:1.7}.demo{font-size:.83rem;color:#536779}
 </style>
 </head>
 <body>
 <header><h1>ضماني — لوحة المالك</h1><p>معاينة تصميم إداري ببيانات توضيحية فقط</p></header>
 <main>
 <div class="notice" role="note"><strong>نسخة عرض غير متصلة:</strong> لا توجد مصادقة أو قاعدة بيانات أو مدفوعات حقيقية. الأرقام والأسماء أدناه وهمية، ولا يمكن تنفيذ أي عملية إدارية من هذه الصفحة.</div>
+<section aria-label="حالة الإدارة والأمان">
+<h2>حالة لوحة الإدارة</h2>
+<div class="security">
+<article><strong>تسجيل الدخول</strong><p>غير متاح في هذه المعاينة العامة. تتطلب الإدارة الفعلية كلمة مرور ومصادقة ثنائية.</p></article>
+<article><strong>البيانات المعروضة</strong><p>أمثلة وهمية ثابتة؛ لا يوجد اتصال بقاعدة بيانات أو تراخيص العملاء.</p></article>
+<article><strong>الصلاحيات</strong><p>هذه الصفحة للعرض فقط؛ لا يمكن اعتماد دفعات أو إصدار تراخيص أو إلغاؤها.</p></article>
+</div>
+<p class="demo">نموذج بصري — ليس صفحة تسجيل دخول ولا بوابة إدارة فعلية.</p>
+</section>
 <div class="stats" aria-label="مؤشرات توضيحية">
 <div class="stat">طلبات الشراء<strong>3</strong></div>
 <div class="stat">تراخيص نشطة<strong>1</strong></div>
