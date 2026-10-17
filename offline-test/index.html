@@ -25,7 +25,7 @@
 <input id="receipt" type="file" accept="image/*,application/pdf" hidden><input id="receiptCamera" type="file" accept="image/*" capture="environment" hidden>
 <button class="btn" type="button" id="extractReceipt">تصوير فاتورة بالكاميرا</button>
 <button class="btn" type="button" id="chooseReceipt">اختيار فاتورة من ألبوم الصور أو الملفات</button>
-<p id="selectedReceiptName" class="muted">لم يتم اختيار فاتورة بعد</p>
+<p id="ocrReview" role="status" class="muted">ستظهر هنا الحقول التي تحتاج مراجعة أو إدخالًا يدويًا.</p><p id="selectedReceiptName" class="muted">لم يتم اختيار فاتورة بعد</p>
 <p class="muted">قراءة OCR تجريبية؛ قد تخطئ في النصوص أو الأرقام. البيانات غير المؤكدة تُترك للمراجعة اليدوية. يدعم الصور وPDF (حتى أول 5 صفحات). الصورة الأصلية تحفظ عند حفظ الفاتورة.</p>
 <details><summary>عرض النص المقروء للتدقيق</summary><textarea id="ocrText" rows="6" readonly placeholder="النص المستخرج"></textarea></details></div>
 <label for="extraReceipts">صور إضافية لنفس الفاتورة (اختياري)</label><input id="extraReceipts" type="file" accept="image/*,application/pdf" multiple><p class="muted">يمكن إرفاق صور متعددة لنفس الضمان؛ تُحفظ الملفات الأصلية مع السجل.</p><button class="btn block" type="submit">حفظ الفاتورة</button></form></div>
@@ -98,6 +98,16 @@ function parseReceiptText(raw){
  if(!result.merchant&&shopLine)result.merchant=shopLine;
  if(result.product){result.product=result.product.replace(/\s+\d+\s+\d{1,7}[.,]\d{2,3}.*$/,'').trim();}
  if(!result.product){const englishItem=lines.find(x=>/\b(?:Samsung|Apple|iPhone|Galaxy|Sony|LG|Huawei|Lenovo|Dell|HP)\b/i.test(x)&&x.length<90);if(englishItem)result.product=englishItem.replace(/^[\s(]+|[\s)]+$/g,'').trim();}
+ const namedStore=lines.slice(0,12).find(x=>/^(?:عالم|مركز|متجر|معرض|محلات|مؤسسة|شركة|صيدلية|مكتبة)\s+[\u0600-\u06FF\s]{4,}$/i.test(x)&&x.length<85);
+ if(namedStore)result.merchant=namedStore;
+ const labeledRegion=text.match(/(?:محافظة|المحافظة)\s*[:：]?\s*([\u0600-\u06FF]{3,})/);
+ if(labeledRegion)result.governorate=labeledRegion[1].replace(/[،,؛]+$/,'');
+ const labeledWilayat=text.match(/(?:ولاية|الولاية)\s*[:：]?\s*([\u0600-\u06FF]{3,})/);
+ if(labeledWilayat)result.wilayat=labeledWilayat[1].replace(/[،,؛]+$/,'');
+ const serialAny=text.match(/\b(?:S\s*\/?\s*N|SN|IMEI)\s*[:#-]?\s*([A-Z0-9][A-Z0-9-]{7,})\b/i);
+ if(serialAny&&!result.serial)result.serial=serialAny[1];
+ const explicitWarranty=lines.find(x=>/(?:رقم\s*شهادة\s*الضمان|warranty\s*certificate\s*(?:no|number))/i.test(x));
+ if(!explicitWarranty)result.warrantyNumber='';
  if(/manufacturing defects|عيوب التصنيع/i.test(text))result.details='الضمان ضد عيوب التصنيع فقط. يرجى مراجعة الشروط والاستثناءات في الوثيقة الأصلية.';
  return result;
 }
@@ -115,7 +125,9 @@ async function extractSelectedReceipt(){
   for(const [key,value] of Object.entries({merchant:parsed.merchant,product:parsed.product,currency:parsed.currency,country:parsed.country,governorate:parsed.governorate,wilayat:parsed.wilayat,phones:parsed.phones,date:parsed.date,warrantyMonths:parsed.months||'',price:parsed.price,serial:parsed.serial,warrantyNumber:parsed.warrantyNumber,details:parsed.details})){if(!value)continue;const field=$(key);const existing=String(field.value||'').trim();const defaultValue=key==='country'&&existing==='سلطنة عمان'||key==='currency'&&existing==='OMR';if(existing&&!defaultValue&&existing!==String(value)&&!confirm('حقل «'+(field.closest('label')?.textContent?.trim()||key)+'» يحتوي قيمة موجودة. هل تريد استبدالها بالنص المستخرج؟'))continue;field.value=value}
   if(!parsed.country)$('country').value='سلطنة عمان';
   updateExpiry();
-  notify('اكتمل استخراج النص. راجع اسم المحل والأرقام والتاريخ والضمان وصحح أي أخطاء قبل الحفظ.');
+  const requiredReview=[['product','اسم المنتج'],['merchant','اسم المحل'],['date','تاريخ الشراء'],['warrantyMonths','مدة الضمان'],['price','السعر'],['governorate','المحافظة'],['wilayat','الولاية'],['serial','الرقم التسلسلي']].filter(([id])=>!String($(id).value||'').trim()).map(x=>x[1]);
+  $('ocrReview').textContent=requiredReview.length?'حقول تحتاج إدخالًا يدويًا أو مراجعة: '+requiredReview.join('، '):'تمت تعبئة الحقول الأساسية؛ راجع القيم مع الفاتورة الأصلية قبل الحفظ.';
+  notify('اكتملت قراءة الفاتورة. راجع جميع البيانات، وأكمل الحقول غير الموجودة أو غير المقروءة يدويًا.');
  }catch(e){console.error('Receipt OCR:',e);notify('تعذر استخراج البيانات: '+(e?.message||String(e))+' — أرسل صورة رسالة الخطأ.')}
  finally{button.disabled=false}
 }
