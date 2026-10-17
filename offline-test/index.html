@@ -112,7 +112,7 @@ async function extractSelectedReceipt(){
   $('ocrText').value=raw;
   if(!raw.trim())throw Error('لم يُستخرج نص واضح من الصورة.');
   const parsed=parseReceiptText(raw);
-  for(const [key,value] of Object.entries({merchant:parsed.merchant,product:parsed.product,currency:parsed.currency,country:parsed.country,governorate:parsed.governorate,wilayat:parsed.wilayat,phones:parsed.phones,date:parsed.date,warrantyMonths:parsed.months||'',price:parsed.price,serial:parsed.serial,warrantyNumber:parsed.warrantyNumber,details:parsed.details})){if(value)$(key).value=value}
+  for(const [key,value] of Object.entries({merchant:parsed.merchant,product:parsed.product,currency:parsed.currency,country:parsed.country,governorate:parsed.governorate,wilayat:parsed.wilayat,phones:parsed.phones,date:parsed.date,warrantyMonths:parsed.months||'',price:parsed.price,serial:parsed.serial,warrantyNumber:parsed.warrantyNumber,details:parsed.details})){if(!value)continue;const field=$(key);const existing=String(field.value||'').trim();const defaultValue=key==='country'&&existing==='سلطنة عمان'||key==='currency'&&existing==='OMR';if(existing&&!defaultValue&&existing!==String(value)&&!confirm('حقل «'+(field.closest('label')?.textContent?.trim()||key)+'» يحتوي قيمة موجودة. هل تريد استبدالها بالنص المستخرج؟'))continue;field.value=value}
   if(!parsed.country)$('country').value='سلطنة عمان';
   updateExpiry();
   notify('اكتمل استخراج النص. راجع اسم المحل والأرقام والتاريخ والضمان وصحح أي أخطاء قبل الحفظ.');
