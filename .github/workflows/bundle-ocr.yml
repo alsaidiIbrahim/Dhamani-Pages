@@ -1,0 +1,37 @@
+name: Bundle offline receipt OCR
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/bundle-ocr.yml'
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Tesseract OCR
+        run: npm install --no-save tesseract.js@5.1.1 tesseract.js-core@5.0.0
+      - name: Bundle offline runtime and Arabic English languages
+        run: |
+          mkdir -p offline-test/ocr
+          cp node_modules/tesseract.js/dist/tesseract.min.js offline-test/ocr/tesseract.min.js
+          cp node_modules/tesseract.js/dist/worker.min.js offline-test/ocr/worker.min.js
+          cp node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js offline-test/ocr/
+          cp node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm offline-test/ocr/
+          cp node_modules/tesseract.js-core/tesseract-core-lstm.wasm.js offline-test/ocr/
+          cp node_modules/tesseract.js-core/tesseract-core-lstm.wasm offline-test/ocr/
+          curl --fail --location --retry 3 -o offline-test/ocr/ara.traineddata.gz https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/ara.traineddata
+          curl --fail --location --retry 3 -o offline-test/ocr/eng.traineddata.gz https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/eng.traineddata
+          gzip -f offline-test/ocr/ara.traineddata.gz
+          gzip -f offline-test/ocr/eng.traineddata.gz
+      - name: Commit runtime
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add offline-test/ocr
+          git diff --cached --quiet || (git commit -m "build: bundle Arabic English OCR runtime" && git push)
