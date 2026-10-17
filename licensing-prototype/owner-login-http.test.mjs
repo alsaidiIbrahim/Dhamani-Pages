@@ -16,6 +16,8 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   async function post(path,data,cookie){
    return fetch(base+path,{method:'POST',headers:{'content-type':'application/json',...(cookie?{cookie}:{})},body:JSON.stringify(data)});
   }
+  const badHost=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'application/json',host:'other.example:1234'},body:JSON.stringify({password:'correct horse battery staple'})});
+  assert.equal(badHost.status,403);
   const foreign=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'application/json',origin:'https://untrusted.example'},body:JSON.stringify({password:'correct horse battery staple'})});
   assert.equal(foreign.status,403);
   const badType=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'text/plain'},body:'hello'});
