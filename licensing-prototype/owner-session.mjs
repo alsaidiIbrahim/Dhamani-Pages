@@ -4,7 +4,7 @@
 import {createHash,timingSafeEqual,randomBytes} from 'node:crypto';
 const hash=token=>createHash('sha256').update(token).digest();
 export class OwnerSessionStore {
- constructor({now=()=>Date.now(),maxLifetimeMs=8*60*60*1000,maxIdleMs=10*60*1000}={}){if(!Number.isSafeInteger(maxLifetimeMs)||maxLifetimeMs<1000||maxLifetimeMs>24*60*60*1000)throw Error('invalid_max_lifetime');if(!Number.isSafeInteger(maxIdleMs)||maxIdleMs<1000||maxIdleMs>maxLifetimeMs)throw Error('invalid_idle_lifetime');this.now=now;this.maxLifetimeMs=maxLifetimeMs;this.maxIdleMs=maxIdleMs;this.sessions=new Map();}
+ constructor({now=()=>Date.now(),maxLifetimeMs=8*60*60*1000,maxIdleMs=Math.min(10*60*1000,maxLifetimeMs)}={}){if(!Number.isSafeInteger(maxLifetimeMs)||maxLifetimeMs<1000||maxLifetimeMs>24*60*60*1000)throw Error('invalid_max_lifetime');if(!Number.isSafeInteger(maxIdleMs)||maxIdleMs<1000||maxIdleMs>maxLifetimeMs)throw Error('invalid_idle_lifetime');this.now=now;this.maxLifetimeMs=maxLifetimeMs;this.maxIdleMs=maxIdleMs;this.sessions=new Map();}
  add({token,ownerId,expiresAt,mfaVerified=false}){
   if(typeof token!=='string'||token.length<32||typeof ownerId!=='string'||!ownerId||!Number.isFinite(expiresAt)||expiresAt<=this.now()||expiresAt-this.now()>this.maxLifetimeMs)throw Error('invalid_session');
   this.sessions.set(hash(token).toString('hex'),{ownerId,expiresAt,mfaVerified,revoked:false,csrfHash:null,lastActivity:this.now()});
