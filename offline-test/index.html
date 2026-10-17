@@ -5,7 +5,7 @@
 <div id="status" role="status" class="muted"></div><div class="card"><h3>فحص الماسح على iPhone</h3><button id="scannerDiag" type="button" class="btn secondary">تشخيص الكاميرا والقارئ</button><pre id="scannerDiagResult" style="white-space:pre-wrap;direction:ltr;text-align:left;font-size:12px"></pre></div>
 <div class="card"><h3>إضافة فاتورة محلية</h3><form id="form">
 <label for="merchant">المحل</label><input id="merchant" required maxlength="150">
-<label for="country">الدولة</label><input id="country" maxlength="100"><label for="governorate">المحافظة</label><input id="governorate" maxlength="100"><label for="wilayat">الولاية</label><input id="wilayat" maxlength="100"><label for="phones">أرقام هواتف المحل</label><input id="phones" type="tel" maxlength="150"><label for="product">اسم المنتج</label><input id="product" required maxlength="150">
+<label for="country">الدولة</label><input id="country" maxlength="100"><label for="governorate">المحافظة</label><input id="governorate" maxlength="100"><label for="wilayat">الولاية</label><input id="wilayat" maxlength="100"><label for="phones">أرقام هواتف المحل</label><input id="phones" type="tel" maxlength="150"><label for="warrantyNumber">رقم شهادة الضمان (إن وجد)</label><input id="warrantyNumber" maxlength="100"><label for="product">اسم المنتج</label><input id="product" required maxlength="150">
 <label for="serial">الرقم التسلسلي أو الباركود</label><input id="serial" maxlength="150" autocomplete="off"><div id="liveScanner" class="card" hidden><h3>ماسح ضماني المباشر</h3><video id="scanVideo" autoplay playsinline muted style="width:100%;max-height:340px;background:#111;border-radius:12px;object-fit:contain"></video><p class="muted">وجّه الكاميرا إلى QR أو الباركود الخطي وثبّتها قليلًا. سيصدر صوت عند نجاح القراءة.</p><button id="stopScan" type="button" class="btn secondary">إغلاق الماسح</button></div><button class="btn secondary" type="button" id="scan">مسح باركود بالكاميرا</button><button class="btn secondary" type="button" id="scanQR">مسح QR مخصص</button><input id="barcodePhoto" type="file" accept="image/*" capture="environment" hidden><p class="muted">إذا لم يدعم المتصفح قراءة الباركود، يمكنك إدخال الرقم المكتوب على الجهاز يدويًا.</p>
 <label for="price">سعر الشراء</label><input id="price" type="number" min="0" step="0.001"><label for="currency">العملة</label><input id="currency" maxlength="10" placeholder="OMR"><label for="warrantyMonths">مدة الضمان بالأشهر</label><input id="warrantyMonths" type="number" min="0" max="600" step="1" placeholder="مثال: 12"><label for="date">تاريخ الشراء</label><input id="date" type="date" required>
 <label for="end">انتهاء الضمان (يُحسب تلقائيًا عند إدخال المدة)</label><input id="end" type="date" required><label for="details">تفاصيل إضافية وشروط الضمان</label><textarea id="details" rows="3"></textarea>
@@ -24,17 +24,30 @@ const notify=msg=>$('status').textContent=msg;
 function fileData(file){return new Promise((resolve,reject)=>{if(!file)return resolve(null);if(file.size>5*1024*1024)return reject(Error('حجم الملف أكبر من 5 ميجابايت'));const r=new FileReader;r.onload=()=>resolve({name:file.name,type:file.type,data:r.result});r.onerror=()=>reject(r.error);r.readAsDataURL(file)})}
 let ocrWorker=null;
 function parseReceiptText(raw){
- const lines=raw.split(String.fromCharCode(10)).map(x=>x.trim()).filter(Boolean);
+ const lines=raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
  const text=lines.join(' ');
- const dateMatch=text.match(/20[0-9]{2}[-/.][0-9]{1,2}[-/.][0-9]{1,2}|[0-9]{1,2}[-/.][0-9]{1,2}[-/.]20[0-9]{2}/);
- const phones=[...text.matchAll(/(?:968[ -]?)?[279][0-9]{7}/g)].map(m=>m[0]);
- const duration=text.match(/(?:warranty|guarantee|ضمان).{0,30}?([0-9]{1,2})[ ]*(months?|شهر|أشهر|years?|سنوات?|سنة)/i);
- const price=text.match(/(?:total|grand total|الإجمالي|المجموع|المبلغ).{0,25}?([0-9]+[.,][0-9]{2,3})/i);
- const serial=text.match(/(?:serial|سيريال|الرقم التسلسلي|S.N)[ :#-]*([A-Z0-9-]{5,})/i);
- let date='';
- if(dateMatch){const a=dateMatch[0].split(/[-/.]/).map(Number);const p=a[0]>1900?a:[a[2],a[1],a[0]];date=p[0]+'-'+String(p[1]).padStart(2,'0')+'-'+String(p[2]).padStart(2,'0');}
- const months=duration?Number(duration[1])*( /year|سنوات|سنة/i.test(duration[2])?12:1):0;
- return {merchant:lines[0]||'',phones:[...new Set(phones)].join(', '),date,months,price:price?.[1]||'',serial:serial?.[1]||''};
+ const result={merchant:'',country:'',governorate:'',wilayat:'',phones:'',date:'',months:0,price:'',serial:'',warrantyNumber:'',details:''};
+ const company=lines.find(x=>/FAD\s*CNC\s*COMPANY/i.test(x))||lines.find(x=>/(?:L\.?\s*L\.?\s*C\.?|شركة|TRADING|EQUIPMENTS)/i.test(x)&&x.length<110);
+ if(company)result.merchant=company;
+ const uae=/U\.?\s*A\.?\s*E\.?|United Arab Emirates|الإمارات/i.test(text);
+ if(uae)result.country='الإمارات العربية المتحدة';
+ if(/Ajman|عجمان/i.test(text))result.governorate='عجمان';
+ if(/Al\s*Rumailah|Rumailah|الرميلة/i.test(text))result.wilayat='الرميلة';
+ const warrantyNumber=text.match(/(?:Warranty\s*(?:No\.?|Number)|رقم\s*الضمان)\s*[:#-]?\s*([0-9]{5,14})/i);
+ if(warrantyNumber)result.warrantyNumber=warrantyNumber[1];
+ const dates=[...text.matchAll(/\b([0-3]?\d)[\/.-]([01]?\d)[\/.-](20\d{2})\b|\b(20\d{2})[\/.-]([01]?\d)[\/.-]([0-3]?\d)\b/g)];
+ for(const m of dates){const y=Number(m[3]||m[4]),mo=Number(m[2]||m[5]),d=Number(m[1]||m[6]);const dt=new Date(Date.UTC(y,mo-1,d));if(dt.getUTCFullYear()===y&&dt.getUTCMonth()===mo-1&&dt.getUTCDate()===d){result.date=y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');break}}
+ const years=/\b1\s*YEAR\b|one\s+year|عام\s+واحد|سنة\s+واحدة|لمدة\s+عام/i.test(text);
+ const months=text.match(/(?:warranty|guarantee|ضمان).{0,40}?(\d{1,2})\s*(months?|شهر|أشهر)/i);
+ result.months=years?12:months?Number(months[1]):0;
+ const total=text.match(/(?:grand\s*total|total|الإجمالي|المجموع)[^\n]{0,25}?(\d+[.,]\d{2,3})/i);
+ if(total)result.price=total[1].replace(',','.');
+ const serial=text.match(/(?:serial\s*(?:no|number)?|الرقم\s*التسلسلي|سيريال)\s*[:#-]?\s*([A-Z0-9-]{5,})/i);
+ if(serial)result.serial=serial[1];
+ const phoneLines=lines.filter(x=>/(?:tel|phone|mobile|هاتف|تلفون|اتصال)\s*[:：]/i.test(x));
+ result.phones=[...new Set(phoneLines.flatMap(x=>[...x.matchAll(/(?:\+?971|\+?968)?[\s-]?[0-9][0-9\s-]{6,13}/g)].map(m=>m[0].trim())))].join('، ');
+ if(/manufacturing defects|عيوب التصنيع/i.test(text))result.details='الضمان ضد عيوب التصنيع فقط. يرجى مراجعة الشروط والاستثناءات في الوثيقة الأصلية.';
+ return result;
 }
 $('extractReceipt').onclick=async()=>{
  const file=$('receipt').files?.[0];if(!file){notify('اختر تصوير الفاتورة أو صورة محفوظة من نافذة الكاميرا.');$('receipt').click();return}
@@ -47,7 +60,7 @@ $('extractReceipt').onclick=async()=>{
   $('ocrText').value=raw;
   if(!raw.trim())throw Error('لم يُستخرج نص واضح من الصورة.');
   const parsed=parseReceiptText(raw);
-  for(const [key,value] of Object.entries({merchant:parsed.merchant,phones:parsed.phones,date:parsed.date,warrantyMonths:parsed.months||'',price:parsed.price,serial:parsed.serial})){if(value&&!$(key).value)$(key).value=value}
+  for(const [key,value] of Object.entries({merchant:parsed.merchant,country:parsed.country,governorate:parsed.governorate,wilayat:parsed.wilayat,phones:parsed.phones,date:parsed.date,warrantyMonths:parsed.months||'',price:parsed.price,serial:parsed.serial,warrantyNumber:parsed.warrantyNumber,details:parsed.details})){if(value&&!$(key).value)$(key).value=value}
   updateExpiry();
   notify('اكتمل استخراج النص. راجع اسم المحل والأرقام والتاريخ والضمان وصحح أي أخطاء قبل الحفظ.');
  }catch(e){console.error('Receipt OCR:',e);notify('تعذر استخراج البيانات: '+(e?.message||String(e))+' — أرسل صورة رسالة الخطأ.')}
@@ -137,7 +150,7 @@ async function cleanupExpired(){await ready;const list=await all();const old=lis
 function receiptCard(x,archived=false){const a=archiveState(x);return '<div class="list-item"><b>'+esc(x.product)+'</b><p>'+esc(x.merchant)+' · '+esc(x.serial)+'</p><p>الشراء: '+esc(x.date)+' — نهاية الضمان: '+esc(x.end)+'</p>'+(archived?'<p>مؤرشف؛ الحذف التلقائي عند فتح التطبيق بتاريخ '+esc(a.deleteDate)+'</p>':'')+'<button class="btn secondary small" data-id="'+esc(x.id)+'" data-action="open">عرض الفاتورة</button> <button class="btn danger small" data-id="'+esc(x.id)+'" data-action="delete">حذف</button></div>'}
 async function render(){const deleted=await cleanupExpired(),list=await all(),q=$('search').value.trim().toLowerCase();if(deleted)notify('تم حذف '+deleted+' فاتورة منتهية بعد انتهاء مهلة الأرشفة 30 يومًا.');const active=list.filter(x=>archiveState(x).kind!=='archive'),archived=list.filter(x=>archiveState(x).kind==='archive');$('count').textContent=active.length+' سجل نشط';const match=x=>[x.merchant,x.product,x.serial].some(v=>String(v||'').toLowerCase().includes(q));const sort=(a,b)=>String(b.created||'').localeCompare(String(a.created||''));const items=active.filter(match).sort(sort);$('reminders').innerHTML=list.map(x=>({x,r:warrantyReminder(x),a:archiveState(x)})).filter(v=>v.a.kind==='archive'||(v.r&&v.r.due)).map(({x,r,a})=>'<p><b>'+esc(x.product)+'</b> — '+(a.kind==='archive'?'انتهى الضمان؛ مؤرشف حتى '+esc(a.deleteDate):'متبقي '+r.remaining+' يوم، تنبيه قبل '+r.lead+' يوم')+'</p>').join('')||'<p class="muted">لا توجد ضمانات تستلزم التنبيه حاليًا.</p>';$('records').innerHTML=items.length?items.map(x=>receiptCard(x)).join(''):'<p class="muted">لا توجد سجلات نشطة.</p>';$('archive').innerHTML=archived.filter(match).sort(sort).map(x=>receiptCard(x,true)).join('')||'<p class="muted">الأرشيف فارغ.</p>'}
 
-$('form').onsubmit=async e=>{e.preventDefault();try{await ready;const file=$('receipt').files[0],receipt=await fileData(file);const obj={id:crypto.randomUUID(),created:new Date().toISOString(),merchant:$('merchant').value.trim(),country:$('country').value.trim(),governorate:$('governorate').value.trim(),wilayat:$('wilayat').value.trim(),phones:$('phones').value.trim(),price:$('price').value,currency:$('currency').value.trim(),warrantyMonths:$('warrantyMonths').value,details:$('details').value.trim(),product:$('product').value.trim(),serial:$('serial').value.trim(),date:$('date').value,end:$('end').value,receipt};if(obj.end<obj.date)throw Error('تاريخ انتهاء الضمان يسبق الشراء');await tx('readwrite',s=>s.put(obj));$('form').reset();notify('حُفظت الفاتورة محليًا');await render()}catch(err){notify('تعذر الحفظ: '+err.message)}};
+$('form').onsubmit=async e=>{e.preventDefault();try{await ready;const file=$('receipt').files[0],receipt=await fileData(file);const obj={id:crypto.randomUUID(),created:new Date().toISOString(),merchant:$('merchant').value.trim(),warrantyNumber:$('warrantyNumber').value.trim(),country:$('country').value.trim(),governorate:$('governorate').value.trim(),wilayat:$('wilayat').value.trim(),phones:$('phones').value.trim(),price:$('price').value,currency:$('currency').value.trim(),warrantyMonths:$('warrantyMonths').value,details:$('details').value.trim(),product:$('product').value.trim(),serial:$('serial').value.trim(),date:$('date').value,end:$('end').value,receipt};if(obj.end<obj.date)throw Error('تاريخ انتهاء الضمان يسبق الشراء');await tx('readwrite',s=>s.put(obj));$('form').reset();notify('حُفظت الفاتورة محليًا');await render()}catch(err){notify('تعذر الحفظ: '+err.message)}};
 async function recordAction(e){const b=e.target.closest('button[data-id]');if(!b)return;await ready;const obj=await tx('readonly',s=>s.get(b.dataset.id));if(!obj)return;if(b.dataset.action==='delete'){if(!confirm('حذف هذا السجل من الجهاز نهائيًا؟'))return;await tx('readwrite',s=>s.delete(obj.id));await render()}else if(obj.receipt){const data=obj.receipt.data;if(!/^data:(image\/(png|jpeg|webp|gif)|application\/pdf);base64,/i.test(data)){notify('صيغة الملف غير مدعومة');return;}const link=document.createElement('a');link.href=data;link.download=obj.receipt.name||'receipt';document.body.appendChild(link);link.click();link.remove();notify('تم تجهيز الفاتورة للعرض أو الحفظ')}else notify('لا توجد صورة مرفقة')}
 $('records').onclick=recordAction;$('archive').onclick=recordAction;
 $('search').oninput=()=>render().catch(e=>notify(e.message));
