@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {request} from 'node:http';
 import assert from 'node:assert/strict';
 import {OwnerLoginPrototype,createPasswordVerifier} from './owner-login.mjs';
 import {OwnerSessionStore} from './owner-session.mjs';
@@ -16,8 +17,11 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   async function post(path,data,cookie){
    return fetch(base+path,{method:'POST',headers:{'content-type':'application/json',...(cookie?{cookie}:{})},body:JSON.stringify(data)});
   }
-  const badHost=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'application/json',host:'other.example:1234'},body:JSON.stringify({password:'correct horse battery staple'})});
-  assert.equal(badHost.status,403);
+  const badHostStatus=await new Promise((resolve,reject)=>{
+   const req=request({hostname:'127.0.0.1',port:server.address().port,path:'/owner/login/password',method:'POST',headers:{host:'other.example:1234','content-type':'application/json'}},res=>{res.resume();res.on('end',()=>resolve(res.statusCode));});
+   req.on('error',reject);req.end(JSON.stringify({password:'correct horse battery staple'}));
+  });
+  assert.equal(badHostStatus,403);
   const foreign=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'application/json',origin:'https://untrusted.example'},body:JSON.stringify({password:'correct horse battery staple'})});
   assert.equal(foreign.status,403);
   const badType=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'text/plain'},body:'hello'});
