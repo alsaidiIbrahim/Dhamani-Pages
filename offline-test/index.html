@@ -41,7 +41,24 @@ async function scanCode(target,qrOnly=false){
     $(target).value=value.trim();scanLog('DECODE SUCCESS format '+format+' length '+value.length);beep();stopLive();
     notify('تمت قراءة الرمز بنجاح: '+value+' — أكمل البيانات واضغط حفظ.');
     if(target==='lookup')await lookup();
-   },qrOnly);scanLog('STREAM READY '+$('scanVideo').videoWidth+'x'+$('scanVideo').videoHeight);notify('الكاميرا تعمل. قرّب الرمز داخل الإطار وثبّت الهاتف.');return;
+   },qrOnly);
+   scanLog('STREAM READY '+$('scanVideo').videoWidth+'x'+$('scanVideo').videoHeight);
+   if(qrOnly&&typeof jsQR==='function'){
+    qrTimer=setInterval(()=>{
+     if(qrBusy||accepted)return;
+     const v=$('scanVideo');if(!v.videoWidth||!v.videoHeight)return;
+     qrBusy=true;
+     try{
+      const canvas=document.createElement('canvas');canvas.width=v.videoWidth;canvas.height=v.videoHeight;
+      const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(v,0,0);
+      const p=ctx.getImageData(0,0,canvas.width,canvas.height);
+      const hit=jsQR(p.data,canvas.width,canvas.height,{inversionAttempts:'attemptBoth'});
+      if(hit?.data){accepted=true;$(target).value=hit.data;scanLog('QR FALLBACK SUCCESS '+hit.data.length);beep();stopLive();notify('تمت قراءة QR: '+hit.data);if(target==='lookup')lookup().catch(e=>notify(e.message))}
+     }catch(e){scanLog('QR fallback error '+e.message)}finally{qrBusy=false}
+    },350);
+    scanLog('QR fallback live frames enabled');
+   }
+   notify('الكاميرا تعمل. قرّب الرمز داخل الإطار وثبّت الهاتف.');return;
   }catch(err){scanLog('STREAM ERROR: '+err.name+': '+err.message);stopLive();notify('تعذر تشغيل المسح المباشر: '+err.message+'؛ سيتم فتح التصوير كبديل.');}
  }
 
