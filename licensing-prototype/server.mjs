@@ -9,7 +9,14 @@ const readBody=async req=>{
 // Only bind to loopback; no public network listener, TLS or persistent database.
 export function createPrototypeServer({engine=new LicenseEngine(),adminToken}={}){
  if(typeof adminToken!=='string'||adminToken.length<24)throw Error('strong_admin_token_required');
+ const attempts=new Map();
  const server=http.createServer(async(req,res)=>{
+  const client=req.socket.remoteAddress||'unknown';
+  const now=Date.now();
+  const bucket=attempts.get(client);
+  if(!bucket||now-bucket.start>=60000)attempts.set(client,{start:now,count:1});
+  else if(++bucket.count>60)return send(res,429,{error:'rate_limited'});
+  if(attempts.size>1024)for(const [key,value] of attempts)if(now-value.start>=60000)attempts.delete(key);
   if(req.url==='/health'&&req.method==='GET')return send(res,200,{status:'prototype_only'});
   const routes={
    'POST /orders':{admin:false,run:b=>engine.order()},
