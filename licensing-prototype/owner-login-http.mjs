@@ -20,14 +20,14 @@ export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore,rep
  const readOwner=repository?createOwnerReadHandler({repository,authenticateOwner:authenticate}):null;
  return async(req,res)=>{
   try{
-   if(req.method==='POST'){
+   {
     const host=req.headers?.host;
-    if(typeof host!=='string'||!/^127\.0\.0\.1:[0-9]{1,5}$/.test(host))return reply(res,403,{error:'forbidden'});
+    if(typeof host!=='string'||host!==`127.0.0.1:${req.socket?.localPort}`)return reply(res,403,{error:'forbidden'});
     const origin=req.headers?.origin;
     if(origin!==undefined&&origin!==`http://${host}`)return reply(res,403,{error:'forbidden'});
     const site=req.headers?.['sec-fetch-site'];
     if(site!==undefined&&site!=='same-origin'&&site!=='none')return reply(res,403,{error:'forbidden'});
-    if(req.headers?.['content-type']?.split(';')[0]?.trim().toLowerCase()!=='application/json')return reply(res,415,{error:'unsupported_media_type'});
+    if(req.method==='POST'&&req.headers?.['content-type']?.split(';')[0]?.trim().toLowerCase()!=='application/json')return reply(res,415,{error:'unsupported_media_type'});
    }
    if(req.method==='GET'&&req.url==='/owner/dashboard.js'){
     const principal=await authenticate(req);
