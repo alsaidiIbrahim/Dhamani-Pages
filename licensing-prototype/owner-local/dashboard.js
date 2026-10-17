@@ -1,5 +1,5 @@
 // Local test-only owner dashboard; no credentials or invoice data stored.
-const columns={orders:['id','status','payment_reference'],licenses:['id','status','device_bound'],events:['event_type','created_at','license_id']};
+const columns={orders:['id','status','payment_reference'],licenses:['id','status','device_bound'],events:['action','created_at','license_id']};
 const state=document.getElementById('state');
 let sessionExpired=false;
 let expiryTimer=null;
