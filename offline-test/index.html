@@ -24,16 +24,17 @@ const notify=msg=>$('status').textContent=msg;
 function fileData(file){return new Promise((resolve,reject)=>{if(!file)return resolve(null);if(file.size>5*1024*1024)return reject(Error('حجم الملف أكبر من 5 ميجابايت'));const r=new FileReader;r.onload=()=>resolve({name:file.name,type:file.type,data:r.result});r.onerror=()=>reject(r.error);r.readAsDataURL(file)})}
 let ocrWorker=null;
 function parseReceiptText(raw){
- const text=raw.replace(/\r/g,'');const lines=text.split('\n').map(x=>x.trim()).filter(Boolean);
- const dateMatch=text.match(/(?:20\\d{2})[-/.](?:0?[1-9]|1[0-2])[-/.](?:[0-2]?\\d|3[01])|(?:[0-2]?\\d|3[01])[-/.](?:0?[1-9]|1[0-2])[-/.](?:20\\d{2})/);
- const phoneMatches=[...text.matchAll(/(?:\\+?968[ -]?)?[279]\\d{7}/g)].map(m=>m[0]);
- const months=text.match(/(?:warranty|guarantee|ضمان)[^\\n]{0,40}?(\\d{1,2})\\s*(?:months?|شهر|أشهر)/i)||text.match(/(\\d{1,2})\\s*(?:months?|شهر|أشهر)[^\\n]{0,20}(?:warranty|ضمان)/i);
- const years=text.match(/(?:warranty|guarantee|ضمان)[^\\n]{0,40}?(\\d{1,2})\\s*(?:years?|سنوات?|سنة)/i)||text.match(/(\\d{1,2})\\s*(?:years?|سنوات?|سنة)[^\\n]{0,20}(?:warranty|ضمان)/i);
- const price=text.match(/(?:total|grand total|الإجمالي|المجموع|المبلغ)[^\\n]{0,25}?(\\d+[.,]\\d{2,3})/i);
- const serial=text.match(/(?:S\\/?N|serial(?:\\s*(?:no|number))?|الرقم التسلسلي|سيريال)[\\s:#-]*([A-Z0-9-]{5,})/i);
- const date=dateMatch?.[0];let normalized='';
- if(date){const parts=date.split(/[-/.]/).map(Number);if(parts[0]>1900)normalized=[parts[0],parts[1],parts[2]].map((n,i)=>i?String(n).padStart(2,'0'):n).join('-');else normalized=[parts[2],parts[1],parts[0]].map((n,i)=>i?String(n).padStart(2,'0'):n).join('-');}
- return {merchant:lines[0]||'',phones:[...new Set(phoneMatches)].join(', '),date:normalized,months:months?Number(months[1]):years?Number(years[1])*12:0,price:price?.[1]||'',serial:serial?.[1]||''};
+ const lines=raw.split(String.fromCharCode(10)).map(x=>x.trim()).filter(Boolean);
+ const text=lines.join(' ');
+ const dateMatch=text.match(/20[0-9]{2}[-/.][0-9]{1,2}[-/.][0-9]{1,2}|[0-9]{1,2}[-/.][0-9]{1,2}[-/.]20[0-9]{2}/);
+ const phones=[...text.matchAll(/(?:968[ -]?)?[279][0-9]{7}/g)].map(m=>m[0]);
+ const duration=text.match(/(?:warranty|guarantee|ضمان).{0,30}?([0-9]{1,2})[ ]*(months?|شهر|أشهر|years?|سنوات?|سنة)/i);
+ const price=text.match(/(?:total|grand total|الإجمالي|المجموع|المبلغ).{0,25}?([0-9]+[.,][0-9]{2,3})/i);
+ const serial=text.match(/(?:serial|سيريال|الرقم التسلسلي|S.N)[ :#-]*([A-Z0-9-]{5,})/i);
+ let date='';
+ if(dateMatch){const a=dateMatch[0].split(/[-/.]/).map(Number);const p=a[0]>1900?a:[a[2],a[1],a[0]];date=p[0]+'-'+String(p[1]).padStart(2,'0')+'-'+String(p[2]).padStart(2,'0');}
+ const months=duration?Number(duration[1])*( /year|سنوات|سنة/i.test(duration[2])?12:1):0;
+ return {merchant:lines[0]||'',phones:[...new Set(phones)].join(', '),date,months,price:price?.[1]||'',serial:serial?.[1]||''};
 }
 $('extractReceipt').onclick=async()=>{
  const file=$('receipt').files?.[0];if(!file){notify('صوّر الفاتورة أولًا أو اختر صورتها.');return}
