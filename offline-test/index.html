@@ -120,6 +120,7 @@ async function extractSelectedReceipt(){
  finally{button.disabled=false}
 }
 
+function receiptTextScore(t){const s=String(t||'');return s.trim().length/40+((s.match(/(?:ضمان|فاتورة|محافظة|ولاية|اسم\s*المحل|متجر|مؤسسة|شركة|رقم\s*شهادة|SN-[A-Z0-9-]+|\d{2}\/\d{2}\/20\d{2})/gi)||[]).length*4)}
 async function readInvoiceText(file){
  if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){
   if(!window.pdfjsLib)throw Error('قارئ PDF لم يكتمل تحميله. حدّث الصفحة بعد اكتمال النشر.');
@@ -143,11 +144,15 @@ async function readInvoiceText(file){
  const prepared=await prepareReceiptForOCR(file);
  const first=await ocrWorker.recognize(prepared);
  const initial=first.data.text||'';
- const hasUsefulData=/\d{2}[\/.-]\d{2}[\/.-]20\d{2}|warranty|ضمان|total|الإجمالي/i.test(initial);
- if(hasUsefulData&&initial.trim().length>75)return initial;
- notify('القراءة الأولى ضعيفة؛ جارٍ محاولة ثانية للصورة الأصلية...');
- const second=await ocrWorker.recognize(file);
- return second.data.text?.trim().length>initial.trim().length?second.data.text:initial;
+ notify('تحسين قراءة الفاتورة: فحص الصورة الأصلية وعنوان المحل...');
+ const original=await ocrWorker.recognize(file);
+ const originalText=original.data.text||'';
+ const best=[initial,originalText].sort((a,b)=>receiptTextScore(b)-receiptTextScore(a))[0];
+ const top=document.createElement('canvas');top.width=prepared.width;top.height=Math.max(1,Math.round(prepared.height*.32));
+ top.getContext('2d').drawImage(prepared,0,0,prepared.width,top.height,0,0,top.width,top.height);
+ const header=await ocrWorker.recognize(top);
+ const headerText=(header.data.text||'').trim();
+ return headerText&&receiptTextScore(headerText)>5?headerText+'\n'+best:best;
 }
 async function prepareReceiptForOCR(file){
  const bitmap=await createImageBitmap(file);
