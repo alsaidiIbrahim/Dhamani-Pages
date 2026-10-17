@@ -6,10 +6,10 @@
 <div class="card"><h3>إضافة فاتورة محلية</h3><form id="form">
 <label for="merchant">المحل</label><input id="merchant" required maxlength="150">
 <label for="country">الدولة</label><input id="country" maxlength="100"><label for="governorate">المحافظة</label><input id="governorate" maxlength="100"><label for="wilayat">الولاية</label><input id="wilayat" maxlength="100"><label for="phones">أرقام هواتف المحل</label><input id="phones" type="tel" maxlength="150"><label for="product">اسم المنتج</label><input id="product" required maxlength="150">
-<label for="serial">الرقم التسلسلي أو الباركود</label><input id="serial" maxlength="150" autocomplete="off"><button class="btn secondary" type="button" id="scan">مسح باركود بالكاميرا</button><button class="btn secondary" type="button" id="scanQR">مسح QR مخصص</button><div id="liveScanner" class="card" hidden><h3>ماسح ضماني المباشر</h3><video id="scanVideo" autoplay playsinline muted style="width:100%;max-height:340px;background:#111;border-radius:12px;object-fit:contain"></video><p class="muted">وجّه الكاميرا إلى QR أو الباركود الخطي وثبّتها قليلًا. سيصدر صوت عند نجاح القراءة.</p><button id="stopScan" type="button" class="btn secondary">إغلاق الماسح</button></div><input id="barcodePhoto" type="file" accept="image/*" capture="environment" hidden><p class="muted">إذا لم يدعم المتصفح قراءة الباركود، يمكنك إدخال الرقم المكتوب على الجهاز يدويًا.</p>
+<label for="serial">الرقم التسلسلي أو الباركود</label><input id="serial" maxlength="150" autocomplete="off"><div id="liveScanner" class="card" hidden><h3>ماسح ضماني المباشر</h3><video id="scanVideo" autoplay playsinline muted style="width:100%;max-height:340px;background:#111;border-radius:12px;object-fit:contain"></video><p class="muted">وجّه الكاميرا إلى QR أو الباركود الخطي وثبّتها قليلًا. سيصدر صوت عند نجاح القراءة.</p><button id="stopScan" type="button" class="btn secondary">إغلاق الماسح</button></div><button class="btn secondary" type="button" id="scan">مسح باركود بالكاميرا</button><button class="btn secondary" type="button" id="scanQR">مسح QR مخصص</button><input id="barcodePhoto" type="file" accept="image/*" capture="environment" hidden><p class="muted">إذا لم يدعم المتصفح قراءة الباركود، يمكنك إدخال الرقم المكتوب على الجهاز يدويًا.</p>
 <label for="price">سعر الشراء</label><input id="price" type="number" min="0" step="0.001"><label for="currency">العملة</label><input id="currency" maxlength="10" placeholder="OMR"><label for="warrantyMonths">مدة الضمان بالأشهر</label><input id="warrantyMonths" type="number" min="0" max="600" step="1" placeholder="مثال: 12"><label for="date">تاريخ الشراء</label><input id="date" type="date" required>
 <label for="end">انتهاء الضمان (يُحسب تلقائيًا عند إدخال المدة)</label><input id="end" type="date" required><label for="details">تفاصيل إضافية وشروط الضمان</label><textarea id="details" rows="3"></textarea>
-<label for="receipt">صورة الفاتورة الأصلية (اختياري)</label><input id="receipt" type="file" accept="image/*,application/pdf" capture="environment"><button class="btn secondary" type="button" id="extractReceipt">استخراج بيانات الفاتورة تلقائيًا (تجريبي)</button><p class="muted">راجع البيانات المستخرجة وصححها قبل الحفظ. صورة الفاتورة الأصلية تُحفظ كما هي. قد يستغرق تحميل محرك OCR بعض الوقت في أول استخدام.</p><textarea id="ocrText" rows="5" readonly placeholder="النص المستخرج من الفاتورة سيظهر هنا للمراجعة"></textarea>
+<label for="receipt">صورة الفاتورة الأصلية (اختياري)</label><input id="receipt" type="file" accept="image/*,application/pdf" capture="environment"><button class="btn secondary" type="button" id="extractReceipt">تصوير الفاتورة واستخراج بياناتها تلقائيًا (تجريبي)</button><p class="muted">راجع البيانات المستخرجة وصححها قبل الحفظ. صورة الفاتورة الأصلية تُحفظ كما هي. قد يستغرق تحميل محرك OCR بعض الوقت في أول استخدام.</p><textarea id="ocrText" rows="5" readonly placeholder="النص المستخرج من الفاتورة سيظهر هنا للمراجعة"></textarea>
 <button class="btn block" type="submit">حفظ على الجهاز</button></form></div>
 <div class="card"><h3>استرجاع الضمان بمسح الجهاز</h3><input id="lookup" placeholder="امسح أو اكتب السيريل نمبر / الباركود"><button class="btn secondary" type="button" id="lookupScan">مسح الرمز</button><div id="lookupResult" role="status"></div></div><div class="card"><h3>الضمانات التي تحتاج متابعة</h3><div id="reminders"></div></div><div class="card"><div class="row"><h3>السجلات المحفوظة</h3><span id="count"></span></div><input id="search" placeholder="بحث عن محل أو منتج أو رقم"><div id="records"></div></div>
 <div class="card"><h3>الأرشيف — 30 يومًا بعد انتهاء الضمان</h3><div id="archive"></div></div><div class="card"><h3>النسخ الاحتياطي</h3><button class="btn secondary" id="export" type="button">تصدير JSON</button><p class="muted">النسخة تشمل الصور وقد تكون كبيرة. استورد الملفات فقط من مصدر موثوق.</p><input id="import" type="file" accept="application/json,.json" aria-label="استيراد نسخة احتياطية"></div>
@@ -37,7 +37,7 @@ function parseReceiptText(raw){
  return {merchant:lines[0]||'',phones:[...new Set(phones)].join(', '),date,months,price:price?.[1]||'',serial:serial?.[1]||''};
 }
 $('extractReceipt').onclick=async()=>{
- const file=$('receipt').files?.[0];if(!file){notify('صوّر الفاتورة أولًا أو اختر صورتها.');return}
+ const file=$('receipt').files?.[0];if(!file){notify('اختر تصوير الفاتورة أو صورة محفوظة من نافذة الكاميرا.');$('receipt').click();return}
  if(!file.type.startsWith('image/')){notify('قراءة OCR التجريبية تدعم صور الفواتير فقط، وليس PDF حاليًا.');return}
  const button=$('extractReceipt');button.disabled=true;notify('جارٍ قراءة الفاتورة محليًا؛ قد يستغرق الأمر بعض الوقت...');
  try{
@@ -53,6 +53,7 @@ $('extractReceipt').onclick=async()=>{
  }catch(e){console.error('Receipt OCR:',e);notify('تعذر استخراج البيانات: '+(e?.message||String(e))+' — أرسل صورة رسالة الخطأ.')}
  finally{button.disabled=false}
 };
+$('receipt').addEventListener('change',()=>{if($('receipt').files?.[0])$('extractReceipt').click()});
 const dayMs=86400000;
 function updateExpiry(){const date=$('date').value,months=Number($('warrantyMonths').value);if(!date||!Number.isInteger(months)||months<=0)return;const [y,m,d]=date.split('-').map(Number);const first=new Date(Date.UTC(y,m-1+months,1));const last=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate();first.setUTCDate(Math.min(d,last));$('end').value=first.toISOString().slice(0,10)}
 $('date').addEventListener('change',updateExpiry);$('warrantyMonths').addEventListener('input',updateExpiry);
@@ -92,7 +93,7 @@ async function scanCode(target,qrOnly=false){
     scanLog('QR fallback live frames enabled');
    }
    notify('الكاميرا تعمل. قرّب الرمز داخل الإطار وثبّت الهاتف.');return;
-  }catch(err){scanLog('STREAM ERROR: '+err.name+': '+err.message);stopLive();notify('تعذر تشغيل المسح المباشر: '+err.message+'؛ سيتم فتح التصوير كبديل.');}
+  }catch(err){scanLog('STREAM ERROR: '+err.name+': '+err.message);stopLive();notify('تعذر تشغيل المسح المباشر: '+err.message);}
  }
 
  notify('تعذر تشغيل القارئ المباشر. استخدم تشخيص الكاميرا لمعرفة السبب؛ لا يتم تصوير فاتورة بدلًا من قراءة الرمز.');return;
