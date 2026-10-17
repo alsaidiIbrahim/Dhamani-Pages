@@ -6,6 +6,7 @@ on:
       - '.github/workflows/bundle-barcode.yml'
       - 'offline-test/barcode-entry.js'
       - 'offline-test/index.html'
+      - 'offline-test/sw.js'
 jobs:
   bundle:
     runs-on: ubuntu-latest
