@@ -50,7 +50,8 @@ jobs:
             await page.waitForTimeout(600);
             if(!await page.locator('#records').getByText('اختبار').count())throw Error('Invoice not saved');
             await page.locator('#records button[data-action=edit]').first().click();
-            if(!await page.locator('#invoicePanel').isVisible())throw Error('Edit invoice panel not shown');
+            await page.waitForTimeout(400);
+            if(!await page.locator('#invoicePanel').isVisible())throw Error('Edit invoice panel not shown; status='+await page.locator('#status').innerText()+'; errors='+errors.join(' | '));
             if(errors.length)throw Error('Browser errors: '+errors.join('; '));
             await browser.close();console.log('PASS: create, expiry, save, edit');
           })().catch(e=>{console.error(e);process.exit(1)});
