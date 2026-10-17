@@ -2,9 +2,11 @@
 const columns={orders:['id','status','payment_reference'],licenses:['id','status','device_bound'],events:['event_type','created_at','license_id']};
 const state=document.getElementById('state');
 let sessionExpired=false;
+let expiryTimer=null;
 function expireSession(){
  if(sessionExpired)return;
  sessionExpired=true;
+ if(expiryTimer!==null)clearTimeout(expiryTimer);
  for(const name of Object.keys(columns))document.getElementById(name).replaceChildren();
  state.textContent='انتهت جلسة الإدارة. ستتم إعادتك إلى صفحة الدخول.';
  window.location.replace('/owner/login');
@@ -26,9 +28,22 @@ async function load(name){
   }
  }catch{if(sessionExpired)return;tbody.replaceChildren();const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=3;td.textContent='تعذر عرض البيانات';tr.append(td);tbody.append(tr);state.textContent='تعذر تحميل بعض البيانات؛ تحقق من الجلسة والخادم المحلي.';}
 }
-Promise.all(Object.keys(columns).map(load)).then(()=>{if(state.textContent==='جاري تحميل بيانات الجلسة...')state.textContent='تم تحميل بيانات الإدارة للقراءة فقط.';});
+async function checkSession(){
+ try{
+  const response=await fetch('/owner/session',{credentials:'same-origin',cache:'no-store'});
+  if(response.status===403){expireSession();return false;}
+  if(!response.ok)throw Error('session_unavailable');
+  const {expiresAt}=await response.json();
+  if(!Number.isFinite(expiresAt)||expiresAt<=Date.now()){expireSession();return false;}
+  if(expiryTimer!==null)clearTimeout(expiryTimer);
+  expiryTimer=setTimeout(expireSession,Math.min(expiresAt-Date.now(),2147483647));
+  return true;
+ }catch{expireSession();return false;}
+}
+checkSession().then(valid=>{if(valid)Promise.all(Object.keys(columns).map(load)).then(()=>{if(state.textContent==='جاري تحميل بيانات الجلسة...')state.textContent='تم تحميل بيانات الإدارة للقراءة فقط.';});});
+/* previous startup: Promise.all(Object.keys(columns).map(load)).then(()=>{if(state.textContent==='جاري تحميل بيانات الجلسة...')state.textContent='تم تحميل بيانات الإدارة للقراءة فقط.';}); */
 // Refresh on returning to a backgrounded tab; a revoked session must not leave stale rows visible.
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!sessionExpired)Promise.all(Object.keys(columns).map(load));});
+document.addEventListener('visibilitychange',async()=>{if(!document.hidden&&!sessionExpired&&await checkSession())Promise.all(Object.keys(columns).map(load));});
 
 document.getElementById('logout').addEventListener('click',async()=>{
  const button=document.getElementById('logout');button.disabled=true;
