@@ -16,7 +16,7 @@ assert.ok(html.includes("String(b.created||'').localeCompare(String(a.created||'
 assert.ok(html.includes("archiveState(x).kind==='delete'"),'expiry cleanup missing');
 assert.ok(html.includes("s.delete(x.id)"),'expiry delete missing');
 assert.ok(html.includes("b.dataset.action==='open'"),'invoice details handler missing');
-assert.ok(sw.includes('offline-test-v41'),'unexpected offline cache version');
+assert.ok(sw.includes('offline-test-v42'),'unexpected offline cache version');
 const assets=[...sw.matchAll(/'\.\/([^']+)'/g)].map(x=>x[1]).filter(Boolean);
 for(const asset of assets)assert.ok(fs.existsSync('offline-test/'+asset),'missing offline asset: '+asset);
 console.log('PASS: syntax, PWA metadata, UI hooks, archive cleanup, insertion order, offline asset paths');
