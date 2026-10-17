@@ -1,0 +1,11 @@
+{
+  "name": "ضماني - اختبار دون إنترنت",
+  "short_name": "ضماني اختبار",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "dir": "rtl",
+  "lang": "ar",
+  "theme_color": "#0b6e4f",
+  "background_color": "#f4f6f5"
+}
