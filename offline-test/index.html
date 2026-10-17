@@ -119,6 +119,16 @@ function parseReceiptText(raw){
  }
  if(moneyCandidates.length)result.price=String(moneyCandidates.sort((a,b)=>b.n-a.n)[0].n);
  if(!result.merchant){const firstHeader=lines.slice(0,9).find(x=>/^(?:عالم|مركز|متجر|معرض|مؤسسة|شركة|محلات|صيدلية|مكتبة)\s+[\u0600-\u06FF\s]{3,}/.test(x)&&!/(?:فاتورة|هاتف|واتساب)/.test(x));if(firstHeader)result.merchant=firstHeader.trim();}
+ // Recover item-row amounts when OCR corrupts the grand-total line.
+ const itemAmounts=[];
+ for(const line of lines){
+  if(!/(?:سامسونج|جالاكسي|هاتف|Samsung|Galaxy|iPhone|حاسوب|لابتوب|تلفاز|ثلاجة|مكيف)/i.test(line)||/(?:هاتف\s*المحل|رقم\s*الهاتف|واتساب|ضمان|تاريخ)/i.test(line))continue;
+  for(const m of line.matchAll(/(?:^|\s)(\d{1,6}[.,]\d{3})(?=\s|$)/g)){const n=Number(m[1].replace(',','.'));if(n>0&&n<100000)itemAmounts.push(n);}
+ }
+ const currentPrice=Number(result.price);
+ if(itemAmounts.length&&(!Number.isFinite(currentPrice)||currentPrice<=0)){result.price=String(Math.max(...itemAmounts));}
+ // Never treat a zero-value OCR total as a confirmed purchase price.
+ if(result.price&&Number(result.price)===0)result.price='';
  if(/manufacturing defects|عيوب التصنيع/i.test(text))result.details='الضمان ضد عيوب التصنيع فقط. يرجى مراجعة الشروط والاستثناءات في الوثيقة الأصلية.';
  return result;
 }
