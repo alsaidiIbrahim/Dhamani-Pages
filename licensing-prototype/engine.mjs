@@ -35,6 +35,27 @@ export class LicenseEngine {
   return this.verify(token,challenge.devicePublicKey);
  }
  transfer(licenseId,newDevicePublicKey){const l=this.licenses.get(licenseId);if(!l||l.status!=='active')throw Error('license_not_active');if(!newDevicePublicKey||newDevicePublicKey===l.device)throw Error('invalid_new_device');l.device=newDevicePublicKey;l.revision++;this.log('transfer',l.id);return {licenseId:l.id,revision:l.revision};}
+ issueTransferChallenge(licenseId,newDevicePublicKey){
+  const l=this.licenses.get(licenseId);
+  if(!l||l.status!=='active')throw Error('license_not_active');
+  if(!newDevicePublicKey||newDevicePublicKey===l.device)throw Error('invalid_new_device');
+  const id=randomBytes(18).toString('base64url');
+  const nonce=randomBytes(32).toString('base64url');
+  this.challenges.set(id,{licenseId,devicePublicKey:newDevicePublicKey,purpose:'transfer',nonce,expiresAt:this.now()+120000,revision:l.revision});
+  return {id,nonce,expiresAt:this.now()+120000};
+ }
+ completeTransferChallenge(licenseId,id,signature){
+  const ch=this.challenges.get(id);
+  if(!ch)throw Error('challenge_not_found');
+  this.challenges.delete(id);
+  const l=this.licenses.get(licenseId);
+  if(!l||l.status!=='active'||ch.licenseId!==licenseId||ch.purpose!=='transfer'||this.now()>ch.expiresAt||ch.revision!==l.revision)throw Error('challenge_expired_or_mismatched');
+  const message=Buffer.from('dhamani-device-proof-v1:transfer:'+id+':'+ch.nonce);
+  let valid=false;
+  try{valid=verify(null,message,ch.devicePublicKey,Buffer.from(signature,'base64url'))}catch{}
+  if(!valid)throw Error('invalid_device_proof');
+  return this.transfer(licenseId,ch.devicePublicKey);
+ }
  suspend(id){const l=this.licenses.get(id);if(!l)throw Error('license_not_found');l.status='suspended';l.revision++;this.log('suspend',id);}
  static verifyCertificate(cert,publicKey){return verify(null,Buffer.from(cert.body),publicKey,Buffer.from(cert.signature,'base64url'))?JSON.parse(Buffer.from(cert.body,'base64url').toString()):null;}
 }
