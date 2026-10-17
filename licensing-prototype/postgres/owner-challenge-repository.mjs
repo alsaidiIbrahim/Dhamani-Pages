@@ -1,9 +1,28 @@
 // Prototype PostgreSQL owner MFA challenge repository. No database connection is opened here.
 // Caller provides a pg-compatible Pool; never store raw challenge tokens.
-import {createHash} from 'node:crypto';
+import {createHash,randomBytes} from 'node:crypto';
 const digest=value=>createHash('sha256').update(value).digest();
 export class PostgresOwnerChallengeRepository {
  constructor(pool){if(!pool||typeof pool.connect!=='function')throw Error('pool_required');this.pool=pool;}
+ async issue({ownerId,now=new Date(),ttlMs=5*60*1000,maxPending=20}={}){
+  if(typeof ownerId!=='string'||!ownerId||!(now instanceof Date)||!Number.isFinite(now.getTime())||!Number.isSafeInteger(ttlMs)||ttlMs<1000||ttlMs>5*60*1000||!Number.isSafeInteger(maxPending)||maxPending<1||maxPending>100)throw Error('invalid_challenge_issue_input');
+  const client=await this.pool.connect();let begun=false;
+  try{
+   await client.query('BEGIN');begun=true;
+   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[ownerId]);
+   const count=await client.query('SELECT count(*)::int AS n FROM owner_auth_challenges WHERE owner_id=$1 AND consumed_at IS NULL AND expires_at>$2 AND failed_attempts<5',[ownerId,now]);
+   if(Number(count.rows[0].n)>=maxPending){await client.query('ROLLBACK');begun=false;return null;}
+   const challenge=randomBytes(32).toString('base64url');
+   await client.query('INSERT INTO owner_auth_challenges(challenge_hash,owner_id,created_at,expires_at) VALUES($1,$2,$3,$4)',[digest(challenge),ownerId,now,new Date(now.getTime()+ttlMs)]);
+   await client.query('COMMIT');begun=false;return challenge;
+  }catch(error){if(begun){try{await client.query('ROLLBACK')}catch{}}throw error;}
+  finally{client.release();}
+ }
+ async recordFailure({challenge,ownerId,now=new Date()}={}){
+  if(typeof challenge!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(challenge)||typeof ownerId!=='string'||!ownerId||!(now instanceof Date)||!Number.isFinite(now.getTime()))return false;
+  const result=await this.pool.query('UPDATE owner_auth_challenges SET failed_attempts=LEAST(failed_attempts+1,5) WHERE challenge_hash=$1 AND owner_id=$2 AND consumed_at IS NULL AND expires_at>$3 AND failed_attempts<5 RETURNING failed_attempts',[digest(challenge),ownerId,now]);
+  return result.rowCount===1;
+ }
  async consume({challenge,ownerId,now=new Date(),maxAttempts=5}={}){
   if(typeof challenge!=='string'||!(/^[A-Za-z0-9_-]{32,256}$/.test(challenge))||typeof ownerId!=='string'||!ownerId||!(now instanceof Date)||!Number.isFinite(now.getTime())||!Number.isSafeInteger(maxAttempts)||maxAttempts<1||maxAttempts>5)throw Error('invalid_challenge_input');
   const client=await this.pool.connect();
