@@ -33,7 +33,8 @@ node --test licensing-prototype/*.test.mjs
 - `GET /owner/dashboard` — واجهة الإدارة المحلية المحمية.
 - `GET /owner/dashboard.js` — ملف الواجهة المحمي.
 - `GET /owner/orders` و`/owner/licenses` و`/owner/events` — قراءة فقط.
-- `POST /owner/logout` — يحتاج Cookie الجلسة ورمز `x-csrf-token` الصادر عند تسجيل الدخول.
+- `GET /owner/csrf` — يصدر رمز CSRF حديثًا لجلسة مالك موثقة؛ يبطل الرمز السابق.
+- `POST /owner/logout` — يحتاج Cookie الجلسة ورمز `x-csrf-token` الحالي. زر الخروج في اللوحة يحصل عليه ثم ينهي الجلسة ويعود إلى صفحة الدخول.
 
 ## حدود الجاهزية
 - لا يوجد HTTPS أو Secure Cookie في الخادم المحلي.
