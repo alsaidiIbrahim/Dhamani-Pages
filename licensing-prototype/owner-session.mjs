@@ -12,6 +12,12 @@ export class OwnerSessionStore {
  expiresAt(token){const entry=typeof token==='string'?this.sessions.get(hash(token).toString('hex')):null;return entry&&!entry.revoked&&entry.mfaVerified&&entry.expiresAt>this.now()&&entry.lastActivity+this.maxIdleMs>this.now()?Math.min(entry.expiresAt,entry.lastActivity+this.maxIdleMs):null;}
  issueCsrf(token){const entry=typeof token==='string'?this.sessions.get(hash(token).toString('hex')):null;if(!entry||entry.revoked||entry.expiresAt<=this.now()||entry.lastActivity+this.maxIdleMs<=this.now()||!entry.mfaVerified)return null;const csrf=randomBytes(32).toString('base64url');entry.csrfHash=hash(csrf);return csrf;}
  verifyCsrf(token,csrf){if(typeof token!=='string'||typeof csrf!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(csrf))return false;const entry=this.sessions.get(hash(token).toString('hex'));return Boolean(entry&&!entry.revoked&&entry.expiresAt>this.now()&&entry.lastActivity+this.maxIdleMs>this.now()&&entry.mfaVerified&&entry.csrfHash&&timingSafeEqual(entry.csrfHash,hash(csrf)));}
+ revokeWithCsrf(token,csrf){
+  if(!this.verifyCsrf(token,csrf))return false;
+  const entry=this.sessions.get(hash(token).toString('hex'));
+  if(!entry||entry.revoked)return false;
+  entry.revoked=true;entry.csrfHash=null;return true;
+ }
  cleanup(){let removed=0;for(const [key,entry] of this.sessions){if(entry.revoked||entry.expiresAt<=this.now()||entry.lastActivity+this.maxIdleMs<=this.now()){this.sessions.delete(key);removed++;}}return removed;}
  revoke(token){
   if(typeof token!=='string')return false;
