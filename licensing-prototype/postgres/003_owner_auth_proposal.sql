@@ -32,6 +32,13 @@ CREATE TABLE IF NOT EXISTS owner_auth_totp_replay (
  last_accepted_step BIGINT NOT NULL CHECK (last_accepted_step >= 0),
  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Shared owner password failure lockout proposal (single owner record across nodes).
+CREATE TABLE IF NOT EXISTS owner_auth_password_limits (
+ owner_id TEXT PRIMARY KEY,
+ failed_attempts SMALLINT NOT NULL DEFAULT 0 CHECK (failed_attempts BETWEEN 0 AND 5),
+ locked_until TIMESTAMPTZ,
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 -- Required before any deployment: transactional challenge consumption,
 -- atomic TOTP replay protection shared across nodes, owner credential vault,
 -- server-side idle expiration, lockout/rate limits, and cleanup jobs.
