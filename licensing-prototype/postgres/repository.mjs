@@ -15,6 +15,22 @@ export class PostgresLicenseRepository {
    throw e;
   }finally{client.release()}
  }
+ async listOrders({limit=50,offset=0}={}){
+  if(!Number.isSafeInteger(limit)||limit<1||limit>100||!Number.isSafeInteger(offset)||offset<0)throw Error('invalid_pagination');
+  const result=await this.pool.query('SELECT id,payment_reference,status,created_at,approved_at,approved_by FROM license_orders ORDER BY created_at DESC,id DESC LIMIT $1 OFFSET $2',[limit,offset]);
+  return result.rows;
+ }
+ async listLicenses({limit=50,offset=0}={}){
+  if(!Number.isSafeInteger(limit)||limit<1||limit>100||!Number.isSafeInteger(offset)||offset<0)throw Error('invalid_pagination');
+  const result=await this.pool.query('SELECT id,order_id,status,revision,created_at,last_verified_at,(device_public_key IS NOT NULL) AS device_bound FROM licenses ORDER BY created_at DESC,id DESC LIMIT $1 OFFSET $2',[limit,offset]);
+  return result.rows;
+ }
+ async listEvents({limit=50,offset=0}={}){
+  if(!Number.isSafeInteger(limit)||limit<1||limit>100||!Number.isSafeInteger(offset)||offset<0)throw Error('invalid_pagination');
+  const result=await this.pool.query('SELECT id,license_id,order_id,actor_id,action,created_at FROM license_events ORDER BY id DESC LIMIT $1 OFFSET $2',[limit,offset]);
+  return result.rows;
+ }
+
  async approveOrder({orderId,adminId,licenseId,activationTokenHash}){
   if(!orderId||!adminId||!licenseId||!Buffer.isBuffer(activationTokenHash)||activationTokenHash.length!==32)throw Error('invalid_approval_input');
   return this.transaction(async client=>{
