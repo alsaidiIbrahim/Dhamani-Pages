@@ -1,3 +1,4 @@
+import {generateKeyPairSync,sign} from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LicenseEngine} from './engine.mjs';
@@ -17,4 +18,24 @@ test('requires payment approval and binds one device',()=>{
  assert.throws(()=>e.verify(activationToken,'device-B'),/device_not_authorized/);
  const forged={...cert,body:Buffer.from('{"forged":true}').toString('base64url')};
  assert.equal(LicenseEngine.verifyCertificate(forged,e.publicKey),null);
+});
+
+test('device challenge requires possession, expires and cannot be replayed',()=>{
+ let time=Date.UTC(2026,9,17);
+ const e=new LicenseEngine({now:()=>time});
+ const {activationToken}=e.approve(e.order().id);
+ const a=generateKeyPairSync('ed25519'),b=generateKeyPairSync('ed25519');
+ const pub=a.publicKey.export({type:'spki',format:'pem'});
+ const proof=(ch,purpose,key)=>sign(null,Buffer.from('dhamani-device-proof-v1:'+purpose+':'+ch.id+':'+ch.nonce),key).toString('base64url');
+ const bad=e.issueChallenge(activationToken,pub);
+ assert.throws(()=>e.completeChallenge(activationToken,bad.id,proof(bad,'activate',b.privateKey)),/invalid_device_proof/);
+ assert.throws(()=>e.completeChallenge(activationToken,bad.id,proof(bad,'activate',a.privateKey)),/challenge_not_found/);
+ const expired=e.issueChallenge(activationToken,pub);time+=120001;
+ assert.throws(()=>e.completeChallenge(activationToken,expired.id,proof(expired,'activate',a.privateKey)),/challenge_expired_or_mismatched/);
+ const good=e.issueChallenge(activationToken,pub);
+ const cert=e.completeChallenge(activationToken,good.id,proof(good,'activate',a.privateKey));
+ assert.equal(LicenseEngine.verifyCertificate(cert,e.publicKey).devicePublicKey,pub);
+ const verifyChallenge=e.issueChallenge(activationToken,pub,'verify');
+ assert.equal(LicenseEngine.verifyCertificate(e.completeChallenge(activationToken,verifyChallenge.id,proof(verifyChallenge,'verify',a.privateKey)),e.publicKey).licenseType,'perpetual_single_device');
+ assert.throws(()=>e.issueChallenge(activationToken,b.publicKey.export({type:'spki',format:'pem'}),'verify'),/device_not_authorized/);
 });
