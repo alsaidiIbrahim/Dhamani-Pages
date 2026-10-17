@@ -9,9 +9,10 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
  const now=()=>90000;
  const secret=Buffer.alloc(32,11);
  const sessionStore=new OwnerSessionStore({now});
- const login=new OwnerLoginPrototype({ownerId:'owner',passwordRecord:createPasswordVerifier('correct horse battery staple'),sessionStore,now});
+ const verifier=new OwnerTotpVerifier({secret,now});
+ const login=new OwnerLoginPrototype({ownerId:'owner',passwordRecord:createPasswordVerifier('correct horse battery staple'),sessionStore,totpVerifier:verifier,now});
  const repository={listOrders:async()=>[{id:'DEMO-1'}],listLicenses:async()=>[],listEvents:async()=>[]};
- const server=await startLoopbackOwnerLoginServer({login,totpVerifier:new OwnerTotpVerifier({secret,now}),sessionStore,repository});
+ const server=await startLoopbackOwnerLoginServer({login,totpVerifier:verifier,sessionStore,repository});
  try{
   assert.equal(server.address().address,'127.0.0.1');
   const base='http://127.0.0.1:'+server.address().port;
