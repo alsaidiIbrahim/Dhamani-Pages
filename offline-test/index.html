@@ -259,6 +259,29 @@ async function recordAction(e){
 $('records').onclick=recordAction;$('archive').onclick=recordAction;
 $('search').oninput=()=>render().catch(e=>notify(e.message));
 $('export').onclick=async()=>{await ready;saveBlob(JSON.stringify({format:'dhamani-offline-v1',records:await all()}),'dhamani-local-backup.json');notify('تم إعداد النسخة الاحتياطية')};
-$('import').onchange=async e=>{try{await ready;const f=e.target.files[0];if(!f)return;if(f.size>40*1024*1024)throw Error('الملف كبير جدًا');const obj=JSON.parse(await f.text());if(obj.format!=='dhamani-offline-v1'||!Array.isArray(obj.records)||obj.records.length>1000)throw Error('صيغة غير صحيحة');for(const x of obj.records){if(!x||typeof x.id!=='string'||typeof x.merchant!=='string'||typeof x.product!=='string'||typeof x.created!=='string')throw Error('بيانات غير صالحة');}if(!confirm('استيراد '+obj.records.length+' سجل إلى هذا الجهاز؟'))return;for(const x of obj.records)await tx('readwrite',s=>s.put(x));notify('اكتمل الاستيراد');await render()}catch(err){notify('فشل الاستيراد: '+err.message)}};
+$('import').onchange=async e=>{try{
+ await ready;const f=e.target.files[0];if(!f)return;
+ if(f.size>200*1024*1024)throw Error('حجم النسخة الاحتياطية يتجاوز 200 ميجابايت');
+ const obj=JSON.parse(await f.text());
+ if(obj.format!=='dhamani-offline-v1'||!Array.isArray(obj.records)||obj.records.length>5000)throw Error('صيغة النسخة الاحتياطية غير صحيحة');
+ const ids=new Set();
+ for(const x of obj.records){
+  if(!x||typeof x.id!=='string'||!x.id||ids.has(x.id)||typeof x.merchant!=='string'||typeof x.product!=='string'||typeof x.created!=='string')throw Error('بيانات السجلات غير صالحة أو مكررة');
+  ids.add(x.id);
+  for(const file of [x.receipt,...(Array.isArray(x.attachments)?x.attachments:[])]){
+   if(file&&(!file.data||typeof file.data!=='string'||!/^data:(image\/(png|jpeg|webp|gif)|application\/pdf);base64,/i.test(file.data)))throw Error('أحد المرفقات غير صالح');
+  }
+ }
+ const current=await all(),existing=new Set(current.map(x=>x.id));
+ const duplicates=obj.records.filter(x=>existing.has(x.id)).length;
+ if(!confirm('استيراد '+obj.records.length+' سجل؟ يوجد '+duplicates+' سجل بالمعرّف نفسه؛ ستُستبدل بياناته. تأكد من نسخة احتياطية حديثة قبل المتابعة.'))return;
+ await new Promise((resolve,reject)=>{
+  const t=db.transaction('receipts','readwrite'),s=t.objectStore('receipts');
+  for(const x of obj.records)s.put(x);
+  t.oncomplete=resolve;t.onerror=()=>reject(t.error);t.onabort=()=>reject(t.error||Error('تم إلغاء العملية'));
+ });
+ notify('اكتمل الاستيراد بنجاح: '+obj.records.length+' سجل.');await render();
+ }catch(err){notify('فشل الاستيراد دون اعتماد استيراد جزئي: '+err.message)}finally{e.target.value=''}};
+
 ready.then(render).catch(e=>notify('تعذر فتح التخزين المحلي: '+e.message));
 </script><script src="./ocr/pdf.min.js"></script><script src="./ocr/tesseract.min.js"></script><script src="./zxing.min.js"></script><script src="./jsQR.min.js"></script><script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("SW unavailable",e)));</script></body></html>
