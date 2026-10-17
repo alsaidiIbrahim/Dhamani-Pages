@@ -41,6 +41,25 @@ export class PostgresLicenseRepository {
    return {licenseId:license.rows[0].id};
   });
  }
+ async activateLicense({licenseId,devicePublicKey,verifyDeviceProof}){
+  if(!licenseId||typeof devicePublicKey!=='string'||!devicePublicKey.trim()||typeof verifyDeviceProof!=='function')throw Error('invalid_activation_input');
+  return this.transaction(async client=>{
+   // Lock the license row so concurrent activation requests serialize.
+   const locked=await client.query("SELECT l.id,l.status,l.device_public_key,l.revision,o.status AS order_status FROM licenses l JOIN license_orders o ON o.id=l.order_id WHERE l.id=$1 FOR UPDATE OF l",[licenseId]);
+   if(locked.rowCount!==1)throw Error('license_not_found');
+   const license=locked.rows[0];
+   if(license.order_status!=='approved')throw Error('payment_not_approved');
+   if(license.status!=='active')throw Error('license_inactive');
+   if(license.device_public_key&&license.device_public_key!==devicePublicKey)throw Error('already_bound');
+   // The caller must validate a one-time signed challenge, not a client-provided boolean.
+   if(!await verifyDeviceProof({licenseId,devicePublicKey,revision:license.revision}))throw Error('invalid_device_proof');
+   if(license.device_public_key===devicePublicKey)return {licenseId,revision:license.revision,alreadyBound:true};
+   const result=await client.query("UPDATE licenses SET device_public_key=$2,last_verified_at=now() WHERE id=$1 AND device_public_key IS NULL AND status='active' RETURNING revision",[licenseId,devicePublicKey]);
+   if(result.rowCount!==1)throw Error('license_changed');
+   await client.query("INSERT INTO license_events(license_id,actor_id,action) VALUES ($1,$2,'device_activated')",[licenseId,'device']);
+   return {licenseId,revision:result.rows[0].revision,alreadyBound:false};
+  });
+ }
  async transferLicense({licenseId,adminId,newDevicePublicKey,expectedRevision,verifyDeviceProof}){
   if(!licenseId||!adminId||!newDevicePublicKey||!Number.isSafeInteger(expectedRevision)||expectedRevision<0||typeof verifyDeviceProof!=='function')throw Error('invalid_transfer_input');
   return this.transaction(async client=>{
