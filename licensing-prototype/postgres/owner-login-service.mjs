@@ -4,17 +4,20 @@
 import {verifyPassword} from '../owner-login.mjs';
 import {PostgresOwnerChallengeRepository} from './owner-challenge-repository.mjs';
 import {PostgresOwnerMfaService} from './owner-mfa-service.mjs';
+import {PostgresOwnerPasswordLimit} from './owner-password-limit.mjs';
 export class PostgresOwnerLoginService {
  constructor({pool,ownerId,passwordRecord,totpSecret,now=()=>Date.now()}={}){
   if(!pool||typeof pool.connect!=='function'||typeof ownerId!=='string'||!ownerId||!passwordRecord||!Buffer.isBuffer(totpSecret)||totpSecret.length<20||typeof now!=='function')throw Error('invalid_login_service');
   this.ownerId=ownerId;this.passwordRecord=passwordRecord;this.now=now;
+  this.passwordLimit=new PostgresOwnerPasswordLimit(pool);
   this.challenges=new PostgresOwnerChallengeRepository(pool);
   this.mfa=new PostgresOwnerMfaService({pool,ownerId,totpSecret,now});
  }
  async start({password}={}){
-  if(!verifyPassword(password,this.passwordRecord))return null;
   const now=this.now();
   if(!Number.isSafeInteger(now)||now<0)return null;
+  const valid=verifyPassword(password,this.passwordRecord);
+  if(!await this.passwordLimit.evaluate({ownerId:this.ownerId,passwordValid:valid,now:new Date(now)}))return null;
   return this.challenges.issue({ownerId:this.ownerId,now:new Date(now)});
  }
  async complete({challenge,code}={}){
