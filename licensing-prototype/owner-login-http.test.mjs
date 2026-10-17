@@ -24,6 +24,17 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
    req.on('error',reject);req.end(JSON.stringify({password:'correct horse battery staple'}));
   });
   assert.equal(badHostStatus,403);
+  const badGetHost=await new Promise((resolve,reject)=>{
+   const req=request({hostname:'127.0.0.1',port:server.address().port,path:'/owner/dashboard',method:'GET',headers:{host:'other.example:1234'}},res=>{res.resume();res.on('end',()=>resolve(res.statusCode));});
+   req.on('error',reject);req.end();
+  });
+  assert.equal(badGetHost,403);
+  const wrongPortHost=await new Promise((resolve,reject)=>{
+   const req=request({hostname:'127.0.0.1',port:server.address().port,path:'/owner/login/password',method:'POST',headers:{host:'127.0.0.1:1','content-type':'application/json'}},res=>{res.resume();res.on('end',()=>resolve(res.statusCode));});
+   req.on('error',reject);req.end(JSON.stringify({password:'correct horse battery staple'}));
+  });
+  assert.equal(wrongPortHost,403);
+
   assert.equal((await fetch(base+'/owner/orders')).status,403);
   assert.equal((await fetch(base+'/owner/dashboard')).status,403);
   assert.equal((await fetch(base+'/owner/dashboard.js')).status,403);
