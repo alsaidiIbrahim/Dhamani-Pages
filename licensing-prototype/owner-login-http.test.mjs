@@ -16,6 +16,12 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   async function post(path,data,cookie){
    return fetch(base+path,{method:'POST',headers:{'content-type':'application/json',...(cookie?{cookie}:{})},body:JSON.stringify(data)});
   }
+  const foreign=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'application/json',origin:'https://untrusted.example'},body:JSON.stringify({password:'correct horse battery staple'})});
+  assert.equal(foreign.status,403);
+  const badType=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'text/plain'},body:'hello'});
+  assert.equal(badType.status,415);
+  const crossSite=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'application/json','sec-fetch-site':'cross-site'},body:JSON.stringify({password:'correct horse battery staple'})});
+  assert.equal(crossSite.status,403);
   assert.equal((await post('/owner/login/password',{password:'incorrect'})).status,401);
   assert.equal((await post('/owner/login/totp',{challenge:'invalid',code:totpCode(secret,3)})).status,401);
   const first=await post('/owner/login/password',{password:'correct horse battery staple'});
