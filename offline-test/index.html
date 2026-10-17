@@ -85,6 +85,13 @@ function parseReceiptText(raw){
  const loc=lines.find(x=>/(?:محافظة|ولاية)/.test(x));
  if(loc){const g=loc.match(/محافظة\s+([\u0600-\u06FF]{3,})/),w=loc.match(/ولاية\s+([\u0600-\u06FF]{3,})/);if(g)result.governorate=g[1];if(w)result.wilayat=w[1];}
  const printedSerial=text.match(/\bSN-[A-Z0-9-]{7,}\b/i);if(printedSerial&&!result.serial)result.serial=printedSerial[0];
+ if(result.governorate)result.governorate=result.governorate.replace(/[،,؛:]+$/g,'');
+ if(result.wilayat)result.wilayat=result.wilayat.replace(/[،,؛:]+$/g,'');
+ const pricedLine=lines.find(x=>/(?:المجموع\s*الكلي|الإجمالي|grand\s*total|total\s*amount)/i.test(x)&&/\d{1,7}[.,]\d{2,3}/.test(x));
+ if(pricedLine){const amounts=[...pricedLine.matchAll(/\d{1,7}[.,]\d{2,3}/g)].map(m=>m[0]);if(amounts.length)result.price=amounts[amounts.length-1];}
+ const phoneCandidates=lines.filter(x=>/(?:هاتف\s*المحل|الواتساب|واتساب|phone|mobile|tel\b)/i.test(x)&&!/(?:فاتورة|invoice|رقم\s*الضمان)/i.test(x));
+ const omaniPhones=phoneCandidates.flatMap(x=>[...x.matchAll(/(?:\+?968[\s-]*)?[249]\d{7}\b/g)].map(m=>m[0].replace(/[\s-]/g,'')));
+ if(omaniPhones.length)result.phones=[...new Set(omaniPhones.map(x=>x.startsWith('+')?x:x.startsWith('968')?'+'+x:'+968'+x))].join('، ');
  if(/manufacturing defects|عيوب التصنيع/i.test(text))result.details='الضمان ضد عيوب التصنيع فقط. يرجى مراجعة الشروط والاستثناءات في الوثيقة الأصلية.';
  return result;
 }
