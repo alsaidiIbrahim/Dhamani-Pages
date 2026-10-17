@@ -1,6 +1,6 @@
 // Test-only loopback HTTP login handler. Do not expose to public networks.
-// TLS, CSRF defenses, persistent rate limits, secure secret storage, and
-// production-grade identity lifecycle are NOT implemented.
+// TLS, persistent rate limits, secure secret storage, and production-grade
+// identity lifecycle are NOT implemented. Basic same-origin and CSRF checks are.
 import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {ownerSessionAuthenticator} from './owner-session.mjs';
@@ -88,8 +88,7 @@ export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore,rep
     const cookies=String(req.headers?.cookie||'').split(';').map(x=>x.trim());
     const cookie=cookies.find(x=>x.startsWith('dhamani_owner_session='));
     const sessionToken=cookie?.slice('dhamani_owner_session='.length);
-    if(!sessionStore.verifyCsrf(sessionToken,req.headers?.['x-csrf-token']))return reply(res,403,{error:'forbidden'});
-    sessionStore.revoke(sessionToken);
+    if(!sessionStore.revokeWithCsrf(sessionToken,req.headers?.['x-csrf-token']))return reply(res,403,{error:'forbidden'});
     return reply(res,200,{authenticated:false},{'set-cookie':'dhamani_owner_session=; HttpOnly; SameSite=Strict; Path=/owner; Max-Age=0'});
    }
    return reply(res,404,{error:'not_found'});
