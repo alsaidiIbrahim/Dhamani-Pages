@@ -28,7 +28,7 @@ function parseReceiptText(raw){
  const text=lines.join(' ');
  const result={merchant:'',country:'',governorate:'',wilayat:'',phones:'',date:'',months:0,price:'',serial:'',warrantyNumber:'',details:''};
  const company=lines.find(x=>/FAD\s*CNC\s*COMPANY/i.test(x))||lines.find(x=>/(?:L\.?\s*L\.?\s*C\.?|شركة|TRADING|EQUIPMENTS)/i.test(x)&&x.length<110);
- if(company)result.merchant=company;
+ if(company){const english=company.match(/FAD\s*CNC\s*COMPANY\s*EQUIPMENTS\s*L\.?\s*L\.?\s*C\.?/i);result.merchant=english?english[0].replace(/\s+/g,' ').trim():company.trim()}
  const uae=/U\.?\s*A\.?\s*E\.?|United Arab Emirates|الإمارات/i.test(text);
  if(uae)result.country='الإمارات العربية المتحدة';
  if(/Ajman|عجمان/i.test(text))result.governorate='عجمان';
