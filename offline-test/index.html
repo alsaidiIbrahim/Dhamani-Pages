@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0b6e4f"><title>ضماني — دفتر دون إنترنت</title><link rel="stylesheet" href="./styles.css"><link rel="manifest" href="./manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"></head>
+<body><header class="topbar"><div class="brand"><span class="logo">✓</span><div><strong>ضماني</strong><small>دفتر محلي دون إنترنت</small></div></div><span class="muted">نسخة اختبار مستقلة</span></header>
+<main class="view"><h2>فواتيري المحلية</h2><p class="muted">تُحفظ هذه البيانات على هذا الجهاز فقط. لا توجد مزامنة مع حسابك السحابي بعد. احتفظ بنسخة احتياطية، ولا تحذف بيانات المتصفح.</p>
+<div id="status" role="status" class="muted"></div>
+<div class="card"><h3>إضافة فاتورة محلية</h3><form id="form">
+<label for="merchant">المحل</label><input id="merchant" required maxlength="150">
+<label for="product">اسم المنتج</label><input id="product" required maxlength="150">
+<label for="serial">رقم المنتج (اختياري)</label><input id="serial" maxlength="150">
+<label for="date">تاريخ الشراء</label><input id="date" type="date" required>
+<label for="end">انتهاء الضمان</label><input id="end" type="date" required>
+<label for="receipt">صورة الفاتورة (اختياري)</label><input id="receipt" type="file" accept="image/*,application/pdf">
+<button class="btn block" type="submit">حفظ على الجهاز</button></form></div>
+<div class="card"><div class="row"><h3>السجلات المحفوظة</h3><span id="count"></span></div><input id="search" placeholder="بحث عن محل أو منتج أو رقم"><div id="records"></div></div>
+<div class="card"><h3>النسخ الاحتياطي</h3><button class="btn secondary" id="export" type="button">تصدير JSON</button><p class="muted">النسخة تشمل الصور وقد تكون كبيرة. استورد الملفات فقط من مصدر موثوق.</p><input id="import" type="file" accept="application/json,.json" aria-label="استيراد نسخة احتياطية"></div>
+</main><script>
+'use strict';
+const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let db;
+const ready=new Promise((resolve,reject)=>{const req=indexedDB.open('dhamani-offline-v1',1);req.onupgradeneeded=()=>req.result.createObjectStore('receipts',{keyPath:'id'});req.onsuccess=()=>{db=req.result;resolve()};req.onerror=()=>reject(req.error)});
+const tx=(mode,action)=>new Promise((resolve,reject)=>{const t=db.transaction('receipts',mode),s=t.objectStore('receipts');let result;const q=action(s);q.onsuccess=()=>result=q.result;t.oncomplete=()=>resolve(result);t.onerror=()=>reject(t.error)});
+const all=()=>tx('readonly',s=>s.getAll());
+const notify=msg=>$('status').textContent=msg;
+function fileData(file){return new Promise((resolve,reject)=>{if(!file)return resolve(null);if(file.size>5*1024*1024)return reject(Error('حجم الملف أكبر من 5 ميجابايت'));const r=new FileReader;r.onload=()=>resolve({name:file.name,type:file.type,data:r.result});r.onerror=()=>reject(r.error);r.readAsDataURL(file)})}
+function saveBlob(text,name){const a=document.createElement('a');const url=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
+async function render(){const list=await all(),q=$('search').value.trim().toLowerCase();$('count').textContent=list.length+' سجل';const items=list.filter(x=>[x.merchant,x.product,x.serial].some(v=>String(v||'').toLowerCase().includes(q))).sort((a,b)=>b.created.localeCompare(a.created));$('records').innerHTML=items.length?items.map(x=>'<div class="list-item"><b>'+esc(x.product)+'</b><p>'+esc(x.merchant)+' · '+esc(x.serial)+'</p><p>الشراء: '+esc(x.date)+' — نهاية الضمان: '+esc(x.end)+'</p><button class="btn secondary small" data-id="'+esc(x.id)+'" data-action="open">عرض الفاتورة</button> <button class="btn danger small" data-id="'+esc(x.id)+'" data-action="delete">حذف</button></div>').join(''):'<p class="muted">لا توجد سجلات.</p>'}
+$('form').onsubmit=async e=>{e.preventDefault();try{await ready;const file=$('receipt').files[0],receipt=await fileData(file);const obj={id:crypto.randomUUID(),created:new Date().toISOString(),merchant:$('merchant').value.trim(),product:$('product').value.trim(),serial:$('serial').value.trim(),date:$('date').value,end:$('end').value,receipt};if(obj.end<obj.date)throw Error('تاريخ انتهاء الضمان يسبق الشراء');await tx('readwrite',s=>s.put(obj));$('form').reset();notify('حُفظت الفاتورة محليًا');await render()}catch(err){notify('تعذر الحفظ: '+err.message)}};
+$('records').onclick=async e=>{const b=e.target.closest('button[data-id]');if(!b)return;await ready;const obj=await tx('readonly',s=>s.get(b.dataset.id));if(!obj)return;if(b.dataset.action==='delete'){if(!confirm('حذف هذا السجل من الجهاز نهائيًا؟'))return;await tx('readwrite',s=>s.delete(obj.id));await render()}else if(obj.receipt){const data=obj.receipt.data;if(!/^data:(image\/(png|jpeg|webp|gif)|application\/pdf);base64,/i.test(data)){notify('صيغة الملف غير مدعومة');return;}const link=document.createElement('a');link.href=data;link.download=obj.receipt.name||'receipt';document.body.appendChild(link);link.click();link.remove();notify('تم تجهيز الفاتورة للعرض أو الحفظ')}else notify('لا توجد صورة مرفقة')};
+$('search').oninput=()=>render().catch(e=>notify(e.message));
+$('export').onclick=async()=>{await ready;saveBlob(JSON.stringify({format:'dhamani-offline-v1',records:await all()}),'dhamani-local-backup.json');notify('تم إعداد النسخة الاحتياطية')};
+$('import').onchange=async e=>{try{await ready;const f=e.target.files[0];if(!f)return;if(f.size>40*1024*1024)throw Error('الملف كبير جدًا');const obj=JSON.parse(await f.text());if(obj.format!=='dhamani-offline-v1'||!Array.isArray(obj.records)||obj.records.length>1000)throw Error('صيغة غير صحيحة');for(const x of obj.records){if(!x||typeof x.id!=='string'||typeof x.merchant!=='string'||typeof x.product!=='string'||typeof x.created!=='string')throw Error('بيانات غير صالحة');}if(!confirm('استيراد '+obj.records.length+' سجل إلى هذا الجهاز؟'))return;for(const x of obj.records)await tx('readwrite',s=>s.put(x));notify('اكتمل الاستيراد');await render()}catch(err){notify('فشل الاستيراد: '+err.message)}};
+ready.then(render).catch(e=>notify('تعذر فتح التخزين المحلي: '+e.message));
+</script><script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("SW unavailable",e)));</script></body></html>
