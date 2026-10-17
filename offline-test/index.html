@@ -36,9 +36,9 @@ async function scanCode(target){
   try{
    stopLive();$('liveScanner').hidden=false;notify('جارٍ تشغيل الكاميرا المباشرة...');scanLog('START live camera '+new Date().toISOString());
    let accepted=false;
-   liveControls=await window.ZXingOffline.startCamera($('scanVideo'),async value=>{
+   liveControls=await window.ZXingOffline.startCamera($('scanVideo'),async (value,format)=>{
     if(accepted||!value)return;accepted=true;
-    $(target).value=value.trim();scanLog('DECODE SUCCESS format length '+value.length);beep();stopLive();
+    $(target).value=value.trim();scanLog('DECODE SUCCESS format '+format+' length '+value.length);beep();stopLive();
     notify('تمت قراءة الرمز بنجاح: '+value+' — أكمل البيانات واضغط حفظ.');
     if(target==='lookup')await lookup();
    });scanLog('STREAM READY '+$('scanVideo').videoWidth+'x'+$('scanVideo').videoHeight);notify('الكاميرا تعمل. قرّب الرمز داخل الإطار وثبّت الهاتف.');return;
