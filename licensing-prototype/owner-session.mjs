@@ -28,6 +28,7 @@ export class OwnerSessionStore {
    if(timingSafeEqual(candidate,digest))matched=entry;
   }
   if(!matched||matched.revoked||matched.expiresAt<=this.now()||matched.lastActivity+this.maxIdleMs<=this.now()||!matched.mfaVerified)return null;
+  matched.lastActivity=this.now();
   return {id:matched.ownerId,role:'owner',active:true};
  }
 }
