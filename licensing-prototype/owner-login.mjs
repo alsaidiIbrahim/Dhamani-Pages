@@ -27,6 +27,10 @@ export class OwnerLoginPrototype {
   this.failures=0;
   return {ok:true,ownerId:this.ownerId};
  }
+ verifyTotpAndIssueSession({ownerId,totpCode,totpVerifier,ttlMs=30*60*1000}){
+  if(ownerId!==this.ownerId||!totpVerifier||typeof totpVerifier.verify!=='function'||!totpVerifier.verify(totpCode))throw Error('mfa_required');
+  return this.issueMfaVerifiedSession({ownerId,mfaProofValidated:true,ttlMs});
+ }
  issueMfaVerifiedSession({ownerId,mfaProofValidated,ttlMs=30*60*1000}){
   // mfaProofValidated must ONLY be provided by trusted server-side MFA verification.
   // Never accept this boolean from a client request.
