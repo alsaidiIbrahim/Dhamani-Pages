@@ -95,6 +95,7 @@ async function scanCode(target,qrOnly=false){
   }catch(err){scanLog('STREAM ERROR: '+err.name+': '+err.message);stopLive();notify('تعذر تشغيل المسح المباشر: '+err.message+'؛ سيتم فتح التصوير كبديل.');}
  }
 
+ notify('تعذر تشغيل القارئ المباشر. استخدم تشخيص الكاميرا لمعرفة السبب؛ لا يتم تصوير فاتورة بدلًا من قراءة الرمز.');return;
  const input=$('barcodePhoto');
  input.value='';
  input.onchange=async()=>{
