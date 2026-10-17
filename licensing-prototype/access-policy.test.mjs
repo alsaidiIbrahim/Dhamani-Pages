@@ -1,0 +1,25 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {LicenseEngine} from './engine.mjs';
+import {DAY_MS,licenseAccess,verifiedLicenseAccess} from './access-policy.mjs';
+test('30-day verification keeps reading and exporting even when editing pauses',()=>{
+ let now=Date.UTC(2026,9,17);
+ const e=new LicenseEngine({now:()=>now});
+ const {activationToken}=e.approve(e.order().id);
+ const cert=e.activate(activationToken,'device-A');
+ const access=(at,opts)=>verifiedLicenseAccess(cert,e.publicKey,LicenseEngine.verifyCertificate,at,opts);
+ assert.equal(access(now).state,'active');
+ assert.equal(access(now+27*DAY_MS).state,'verification_soon');
+ assert.equal(access(now+30*DAY_MS).canCreate,true);
+ const overdue=access(now+30*DAY_MS+1);
+ assert.equal(overdue.state,'verification_required');
+ assert.deepEqual([overdue.canRead,overdue.canExport,overdue.canCreate,overdue.canEdit],[true,true,false,false]);
+ assert.equal(access(now-10*DAY_MS).state,'clock_rollback');
+ assert.equal(access(now+DAY_MS,{latestObservedAt:now+10*DAY_MS}).state,'clock_rollback');
+ const tampered={...cert,body:Buffer.from(JSON.stringify({licenseType:'perpetual_single_device',verifiedAt:now,nextCheckAt:now+30*DAY_MS})).toString('base64url')};
+ assert.equal(verifiedLicenseAccess(tampered,e.publicKey,LicenseEngine.verifyCertificate,now).state,'activation_required');
+ assert.equal(licenseAccess({licenseType:'perpetual_single_device',verifiedAt:now,nextCheckAt:now+365*DAY_MS},now).state,'invalid_certificate');
+ now+=31*DAY_MS;
+ const renewed=e.verify(activationToken,'device-A');
+ assert.equal(verifiedLicenseAccess(renewed,e.publicKey,LicenseEngine.verifyCertificate,now).canCreate,true);
+});
