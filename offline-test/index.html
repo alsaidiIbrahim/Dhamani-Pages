@@ -26,7 +26,7 @@
 <button class="btn" type="button" id="extractReceipt">تصوير فاتورة بالكاميرا</button>
 <button class="btn" type="button" id="chooseReceipt">اختيار فاتورة من ألبوم الصور أو الملفات</button>
 <p id="selectedReceiptName" class="muted">لم يتم اختيار فاتورة بعد</p>
-<p class="muted">قراءة OCR تجريبية؛ قد تخطئ في النصوص أو الأرقام. البيانات غير المؤكدة تُترك للمراجعة اليدوية. الصورة الأصلية تحفظ عند حفظ الفاتورة.</p>
+<p class="muted">قراءة OCR تجريبية؛ قد تخطئ في النصوص أو الأرقام. البيانات غير المؤكدة تُترك للمراجعة اليدوية. يدعم الصور وPDF (حتى أول 5 صفحات). الصورة الأصلية تحفظ عند حفظ الفاتورة.</p>
 <details><summary>عرض النص المقروء للتدقيق</summary><textarea id="ocrText" rows="6" readonly placeholder="النص المستخرج"></textarea></details></div>
 <button class="btn block" type="submit">حفظ الفاتورة</button></form></div>
 <div class="card"><details><summary>تشخيص الكاميرا والقارئ</summary><button id="scannerDiag" type="button" class="btn secondary">تشخيص الكاميرا والقارئ</button><pre id="scannerDiagResult" style="white-space:pre-wrap;direction:ltr;text-align:left;font-size:12px"></pre></details></div>
@@ -70,12 +70,12 @@ function parseReceiptText(raw){
 }
 async function extractSelectedReceipt(){
  const file=$('receipt').files?.[0];if(!file){notify('اختر صورة فاتورة أولًا.');return}
- if(!file.type.startsWith('image/')){notify('قراءة OCR التجريبية تدعم صور الفواتير فقط، وليس PDF حاليًا.');return}
+ if(!file.type.startsWith('image/')&&file.type!=='application/pdf'&&!/\.pdf$/i.test(file.name)){notify('الصيغة غير مدعومة. اختر صورة JPG أو PNG أو HEIC يدعمها الهاتف، أو ملف PDF.');return}
  const button=$('extractReceipt');button.disabled=true;notify('جارٍ قراءة الفاتورة محليًا؛ قد يستغرق الأمر بعض الوقت...');
  try{
   if(!window.Tesseract)throw Error('محرك OCR غير متاح. تأكد من اتصال التحميل الأول ثم أعد فتح الصفحة.');
   if(!ocrWorker)ocrWorker=await Tesseract.createWorker('ara+eng',1,{workerPath:new URL('./ocr/worker.min.js',location.href).href,corePath:new URL('./ocr/tesseract-core-simd-lstm.wasm.js',location.href).href,langPath:new URL('./ocr/',location.href).href,gzip:true});
-  const image=await prepareReceiptForOCR(file);const result=await ocrWorker.recognize(image);const raw=result.data.text||'';
+  const raw=await readInvoiceText(file);
   $('ocrText').value=raw;
   if(!raw.trim())throw Error('لم يُستخرج نص واضح من الصورة.');
   const parsed=parseReceiptText(raw);
@@ -87,6 +87,35 @@ async function extractSelectedReceipt(){
  finally{button.disabled=false}
 }
 
+async function readInvoiceText(file){
+ if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){
+  if(!window.pdfjsLib)throw Error('قارئ PDF لم يكتمل تحميله. حدّث الصفحة بعد اكتمال النشر.');
+  pdfjsLib.GlobalWorkerOptions.workerSrc='./ocr/pdf.worker.min.js';
+  const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+  const texts=[];
+  const pages=Math.min(pdf.numPages,5);
+  for(let i=1;i<=pages;i++){
+   notify('قراءة صفحة '+i+' من '+pages+' من ملف PDF...');
+   const page=await pdf.getPage(i);
+   const layer=await page.getTextContent();
+   const nativeText=layer.items.map(x=>x.str||'').join(' ');
+   if(nativeText.trim().length>100){texts.push(nativeText);continue}
+   const viewport=page.getViewport({scale:Math.min(2.2,2100/page.getViewport({scale:1}).width)});
+   const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+   await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+   const result=await ocrWorker.recognize(canvas);texts.push(result.data.text||'');
+  }
+  return texts.join('\n');
+ }
+ const prepared=await prepareReceiptForOCR(file);
+ const first=await ocrWorker.recognize(prepared);
+ const initial=first.data.text||'';
+ const hasUsefulData=/\d{2}[\/.-]\d{2}[\/.-]20\d{2}|warranty|ضمان|total|الإجمالي/i.test(initial);
+ if(hasUsefulData&&initial.trim().length>75)return initial;
+ notify('القراءة الأولى ضعيفة؛ جارٍ محاولة ثانية للصورة الأصلية...');
+ const second=await ocrWorker.recognize(file);
+ return second.data.text?.trim().length>initial.trim().length?second.data.text:initial;
+}
 async function prepareReceiptForOCR(file){
  const bitmap=await createImageBitmap(file);
  const scale=Math.min(2,2400/Math.max(bitmap.width,bitmap.height));
@@ -209,4 +238,4 @@ $('search').oninput=()=>render().catch(e=>notify(e.message));
 $('export').onclick=async()=>{await ready;saveBlob(JSON.stringify({format:'dhamani-offline-v1',records:await all()}),'dhamani-local-backup.json');notify('تم إعداد النسخة الاحتياطية')};
 $('import').onchange=async e=>{try{await ready;const f=e.target.files[0];if(!f)return;if(f.size>40*1024*1024)throw Error('الملف كبير جدًا');const obj=JSON.parse(await f.text());if(obj.format!=='dhamani-offline-v1'||!Array.isArray(obj.records)||obj.records.length>1000)throw Error('صيغة غير صحيحة');for(const x of obj.records){if(!x||typeof x.id!=='string'||typeof x.merchant!=='string'||typeof x.product!=='string'||typeof x.created!=='string')throw Error('بيانات غير صالحة');}if(!confirm('استيراد '+obj.records.length+' سجل إلى هذا الجهاز؟'))return;for(const x of obj.records)await tx('readwrite',s=>s.put(x));notify('اكتمل الاستيراد');await render()}catch(err){notify('فشل الاستيراد: '+err.message)}};
 ready.then(render).catch(e=>notify('تعذر فتح التخزين المحلي: '+e.message));
-</script><script src="./ocr/tesseract.min.js"></script><script src="./zxing.min.js"></script><script src="./jsQR.min.js"></script><script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("SW unavailable",e)));</script></body></html>
+</script><script src="./ocr/pdf.min.js"></script><script src="./ocr/tesseract.min.js"></script><script src="./zxing.min.js"></script><script src="./jsQR.min.js"></script><script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("SW unavailable",e)));</script></body></html>
