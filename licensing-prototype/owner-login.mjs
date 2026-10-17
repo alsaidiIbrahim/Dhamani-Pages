@@ -14,7 +14,7 @@ export function verifyPassword(password,record){
 export class OwnerLoginPrototype {
  constructor({ownerId,passwordRecord,sessionStore,now=()=>Date.now(),maxFailures=5,lockMs=15*60*1000}={}){
   if(!ownerId||!passwordRecord||!sessionStore||typeof sessionStore.add!=='function')throw Error('login_configuration_required');
-  this.ownerId=ownerId;this.passwordRecord=passwordRecord;this.sessionStore=sessionStore;this.now=now;this.maxFailures=maxFailures;this.lockMs=lockMs;this.failures=0;this.lockUntil=0;
+  this.ownerId=ownerId;this.passwordRecord=passwordRecord;this.sessionStore=sessionStore;this.now=now;this.maxFailures=maxFailures;this.lockMs=lockMs;this.failures=0;this.lockUntil=0;this.pending=new Map();this.challengeLifetimeMs=5*60*1000;
  }
  verifyFirstFactor(password){
   if(this.now()<this.lockUntil)return {ok:false,reason:'temporarily_locked'};
@@ -25,18 +25,24 @@ export class OwnerLoginPrototype {
    return {ok:false,reason:'invalid_credentials'};
   }
   this.failures=0;
-  return {ok:true,ownerId:this.ownerId};
+  const challenge=randomBytes(32).toString('base64url');
+  this.pending.set(challenge,{expiresAt:this.now()+this.challengeLifetimeMs,failures:0});
+  return {ok:true,challenge};
  }
- verifyTotpAndIssueSession({ownerId,totpCode,totpVerifier,ttlMs=30*60*1000}){
-  if(ownerId!==this.ownerId||!totpVerifier||typeof totpVerifier.verify!=='function'||!totpVerifier.verify(totpCode))throw Error('mfa_required');
-  return this.issueMfaVerifiedSession({ownerId,mfaProofValidated:true,ttlMs});
- }
- issueMfaVerifiedSession({ownerId,mfaProofValidated,ttlMs=30*60*1000}){
-  // mfaProofValidated must ONLY be provided by trusted server-side MFA verification.
-  // Never accept this boolean from a client request.
-  if(ownerId!==this.ownerId||mfaProofValidated!==true||!Number.isSafeInteger(ttlMs)||ttlMs<1000||ttlMs>30*60*1000)throw Error('mfa_required');
+ verifyTotpAndIssueSession({challenge,totpCode,totpVerifier,ttlMs=30*60*1000}){
+  const pending=typeof challenge==='string'?this.pending.get(challenge):null;
+  if(!pending||this.now()>=pending.expiresAt){if(pending)this.pending.delete(challenge);throw Error('mfa_required');}
+  if(!totpVerifier||typeof totpVerifier.verify!=='function')throw Error('mfa_required');
+  if(!totpVerifier.verify(totpCode)){
+   pending.failures++;
+   if(pending.failures>=5)this.pending.delete(challenge);
+   throw Error('mfa_required');
+  }
+  // Consume challenge before issuing the session. No reusable boolean bypass.
+  this.pending.delete(challenge);
+  if(!Number.isSafeInteger(ttlMs)||ttlMs<1000||ttlMs>30*60*1000)throw Error('invalid_session_lifetime');
   const token=randomBytes(32).toString('base64url');
-  this.sessionStore.add({token,ownerId,expiresAt:this.now()+ttlMs,mfaVerified:true});
+  this.sessionStore.add({token,ownerId:this.ownerId,expiresAt:this.now()+ttlMs,mfaVerified:true});
   return token;
  }
 }
