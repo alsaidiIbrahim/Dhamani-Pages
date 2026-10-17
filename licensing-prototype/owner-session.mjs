@@ -4,14 +4,14 @@
 import {createHash,timingSafeEqual,randomBytes} from 'node:crypto';
 const hash=token=>createHash('sha256').update(token).digest();
 export class OwnerSessionStore {
- constructor({now=()=>Date.now(),maxLifetimeMs=8*60*60*1000}={}){if(!Number.isSafeInteger(maxLifetimeMs)||maxLifetimeMs<1000||maxLifetimeMs>24*60*60*1000)throw Error('invalid_max_lifetime');this.now=now;this.maxLifetimeMs=maxLifetimeMs;this.sessions=new Map();}
+ constructor({now=()=>Date.now(),maxLifetimeMs=8*60*60*1000,maxIdleMs=10*60*1000}={}){if(!Number.isSafeInteger(maxLifetimeMs)||maxLifetimeMs<1000||maxLifetimeMs>24*60*60*1000)throw Error('invalid_max_lifetime');if(!Number.isSafeInteger(maxIdleMs)||maxIdleMs<1000||maxIdleMs>maxLifetimeMs)throw Error('invalid_idle_lifetime');this.now=now;this.maxLifetimeMs=maxLifetimeMs;this.maxIdleMs=maxIdleMs;this.sessions=new Map();}
  add({token,ownerId,expiresAt,mfaVerified=false}){
   if(typeof token!=='string'||token.length<32||typeof ownerId!=='string'||!ownerId||!Number.isFinite(expiresAt)||expiresAt<=this.now()||expiresAt-this.now()>this.maxLifetimeMs)throw Error('invalid_session');
-  this.sessions.set(hash(token).toString('hex'),{ownerId,expiresAt,mfaVerified,revoked:false,csrfHash:null});
+  this.sessions.set(hash(token).toString('hex'),{ownerId,expiresAt,mfaVerified,revoked:false,csrfHash:null,lastActivity:this.now()});
  }
- expiresAt(token){const entry=typeof token==='string'?this.sessions.get(hash(token).toString('hex')):null;return entry&&!entry.revoked&&entry.mfaVerified&&entry.expiresAt>this.now()?entry.expiresAt:null;}
- issueCsrf(token){const entry=typeof token==='string'?this.sessions.get(hash(token).toString('hex')):null;if(!entry||entry.revoked||entry.expiresAt<=this.now()||!entry.mfaVerified)return null;const csrf=randomBytes(32).toString('base64url');entry.csrfHash=hash(csrf);return csrf;}
- verifyCsrf(token,csrf){if(typeof token!=='string'||typeof csrf!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(csrf))return false;const entry=this.sessions.get(hash(token).toString('hex'));return Boolean(entry&&!entry.revoked&&entry.expiresAt>this.now()&&entry.mfaVerified&&entry.csrfHash&&timingSafeEqual(entry.csrfHash,hash(csrf)));}
+ expiresAt(token){const entry=typeof token==='string'?this.sessions.get(hash(token).toString('hex')):null;return entry&&!entry.revoked&&entry.mfaVerified&&entry.expiresAt>this.now()&&entry.lastActivity+this.maxIdleMs>this.now()?Math.min(entry.expiresAt,entry.lastActivity+this.maxIdleMs):null;}
+ issueCsrf(token){const entry=typeof token==='string'?this.sessions.get(hash(token).toString('hex')):null;if(!entry||entry.revoked||entry.expiresAt<=this.now()||entry.lastActivity+this.maxIdleMs<=this.now()||entry.lastActivity+this.maxIdleMs<=this.now()||!entry.mfaVerified)return null;const csrf=randomBytes(32).toString('base64url');entry.csrfHash=hash(csrf);return csrf;}
+ verifyCsrf(token,csrf){if(typeof token!=='string'||typeof csrf!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(csrf))return false;const entry=this.sessions.get(hash(token).toString('hex'));return Boolean(entry&&!entry.revoked&&entry.expiresAt>this.now()&&entry.lastActivity+this.maxIdleMs>this.now()&&entry.mfaVerified&&entry.csrfHash&&timingSafeEqual(entry.csrfHash,hash(csrf)));}
  cleanup(){let removed=0;for(const [key,entry] of this.sessions){if(entry.revoked||entry.expiresAt<=this.now()){this.sessions.delete(key);removed++;}}return removed;}
  revoke(token){
   if(typeof token!=='string')return false;
@@ -27,7 +27,7 @@ export class OwnerSessionStore {
    const candidate=Buffer.from(key,'hex');
    if(timingSafeEqual(candidate,digest))matched=entry;
   }
-  if(!matched||matched.revoked||matched.expiresAt<=this.now()||!matched.mfaVerified)return null;
+  if(!matched||matched.revoked||matched.expiresAt<=this.now()||matched.lastActivity+this.maxIdleMs<=this.now()||!matched.mfaVerified)return null;
   return {id:matched.ownerId,role:'owner',active:true};
  }
 }
