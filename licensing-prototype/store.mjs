@@ -20,7 +20,10 @@ export class PrototypeStore {
   if(data.version!==VERSION||!Array.isArray(data.orders)||!Array.isArray(data.licenses)||!Array.isArray(data.audit))throw Error('unsupported_or_invalid_state');
   for(const [id,o] of data.orders)if(typeof id!=='string'||!o||o.id!==id)throw Error('invalid_order');
   for(const [id,l] of data.licenses)if(typeof id!=='string'||!l||l.id!==id||typeof l.tokenHash!=='string')throw Error('invalid_license');
-  engine.orders=new Map(data.orders);engine.licenses=new Map(data.licenses);engine.audit=data.audit;engine.auditHead=data.auditHead??'GENESIS';if(!engine.verifyAudit())throw Error('invalid_audit_chain');
+  const candidate={audit:data.audit,auditHead:data.auditHead??'GENESIS',verifyAudit:engine.verifyAudit};
+  if(!candidate.verifyAudit())throw Error('invalid_audit_chain');
+  const orders=new Map(data.orders),licenses=new Map(data.licenses);
+  engine.orders=orders;engine.licenses=licenses;engine.audit=data.audit;engine.auditHead=candidate.auditHead;
   // Never persist short-lived challenges. Restart invalidates outstanding challenges.
   engine.challenges.clear();
   return true;
