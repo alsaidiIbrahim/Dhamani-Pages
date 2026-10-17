@@ -72,6 +72,8 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   assert.match(dashboardScriptText,/textContent/);
   assert.match(dashboardScriptText,/owner\/csrf/);
   assert.match(dashboardScriptText,/owner\/logout/);
+  assert.match(dashboardScriptText,/replaceChildren/);
+  assert.match(dashboardScriptText,/sessionExpired/);
   const csrfResponse=await fetch(base+'/owner/csrf',{headers:{cookie:cookie.split(';')[0]}});
   assert.equal(csrfResponse.status,200);
   const refreshedCsrf=(await csrfResponse.json()).csrfToken;
