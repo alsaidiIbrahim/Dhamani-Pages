@@ -23,6 +23,12 @@ jobs:
           if(inline.length<1)throw Error('Missing app script');
           for(const js of inline)new vm.Script(js);
           for(const id of ['addInvoice','invoicePanel','product','warrantyMonths','date','end','merchant','country','serial','scan','scanQR','extractReceipt','chooseReceipt','receipt','extraReceipts','records','archive','export','import'])if(!html.includes('id="'+id+'"'))throw Error('Missing '+id);
+          const parser=html.slice(html.indexOf('function parseReceiptText(raw){'),html.indexOf('async function extractSelectedReceipt()'));
+          const parse=new Function(parser+';return parseReceiptText')();
+          const sample=['ولاية السيب، سوق الحيل الشمالية، محافظة مسقط، سلطنة عمان','هاتف المحل: +968 24123456 | الواتساب: +968 91234567','فاتورة ضمان معتمدة','رقم الفاتورة: INV-2026-1017','تاريخ الإصدار: 17/10/2026','وصف المنتج الكمية السعر الإجمالي','هاتف سامسونج جالاكسي 1 560.000','(Samsung Galaxy Ultra)','المجموع الكلي: 560.000 ريال عماني','مدة الضمان: يسري هذا الضمان لمدة 3 سنوات ميلادية','SN-SAM-2026-GALAX-560OMR-3Y'].join('\\n');
+          const parsed=parse(sample);
+          if(!parsed.product.includes('سامسونج')||parsed.months!==36||parsed.serial!=='SN-SAM-2026-GALAX-560OMR-3Y'||parsed.governorate!=='مسقط'||parsed.wilayat!=='السيب'||parsed.merchant.includes('هاتف المحل'))throw Error('Arabic OCR parsing regression: '+JSON.stringify(parsed));
+          console.log('PASS: Arabic receipt fields from mixed RTL OCR sample');
           const sw=fs.readFileSync('offline-test/sw.js','utf8');new vm.Script(sw);
           console.log('PASS: JavaScript syntax, UI IDs, service worker syntax');
           NODE
