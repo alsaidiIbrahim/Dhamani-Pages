@@ -9,7 +9,7 @@
 <label for="serial">الرقم التسلسلي أو الباركود</label><input id="serial" maxlength="150" autocomplete="off"><div id="liveScanner" class="card" hidden><h3>ماسح ضماني المباشر</h3><video id="scanVideo" autoplay playsinline muted style="width:100%;max-height:340px;background:#111;border-radius:12px;object-fit:contain"></video><p class="muted">وجّه الكاميرا إلى QR أو الباركود الخطي وثبّتها قليلًا. سيصدر صوت عند نجاح القراءة.</p><button id="stopScan" type="button" class="btn secondary">إغلاق الماسح</button></div><button class="btn secondary" type="button" id="scan">مسح باركود بالكاميرا</button><button class="btn secondary" type="button" id="scanQR">مسح QR مخصص</button><input id="barcodePhoto" type="file" accept="image/*" capture="environment" hidden><p class="muted">إذا لم يدعم المتصفح قراءة الباركود، يمكنك إدخال الرقم المكتوب على الجهاز يدويًا.</p>
 <label for="price">سعر الشراء</label><input id="price" type="number" min="0" step="0.001"><label for="currency">العملة</label><input id="currency" maxlength="10" placeholder="OMR"><label for="warrantyMonths">مدة الضمان بالأشهر</label><input id="warrantyMonths" type="number" min="0" max="600" step="1" placeholder="مثال: 12"><label for="date">تاريخ الشراء</label><input id="date" type="date" required>
 <label for="end">انتهاء الضمان (يُحسب تلقائيًا عند إدخال المدة)</label><input id="end" type="date" required><label for="details">تفاصيل إضافية وشروط الضمان</label><textarea id="details" rows="3"></textarea>
-<label for="receipt">صورة الفاتورة الأصلية (اختياري)</label><input id="receipt" type="file" accept="image/*,application/pdf" capture="environment"><button class="btn secondary" type="button" id="extractReceipt">تصوير الفاتورة واستخراج بياناتها تلقائيًا (تجريبي)</button><p class="muted">راجع البيانات المستخرجة وصححها قبل الحفظ. صورة الفاتورة الأصلية تُحفظ كما هي. قد يستغرق تحميل محرك OCR بعض الوقت في أول استخدام.</p><textarea id="ocrText" rows="5" readonly placeholder="النص المستخرج من الفاتورة سيظهر هنا للمراجعة"></textarea>
+<label>صورة الفاتورة الأصلية</label><input id="receipt" type="file" accept="image/*,application/pdf" hidden><input id="receiptCamera" type="file" accept="image/*" capture="environment" hidden><button class="btn secondary" type="button" id="extractReceipt">تصوير فاتورة بالكاميرا</button><button class="btn secondary" type="button" id="chooseReceipt">اختيار فاتورة من ألبوم الصور أو الملفات</button><p id="selectedReceiptName" class="muted">لم يتم اختيار فاتورة بعد</p><p class="muted">راجع البيانات المستخرجة وصححها قبل الحفظ. صورة الفاتورة الأصلية تُحفظ كما هي. قد يستغرق تحميل محرك OCR بعض الوقت في أول استخدام.</p><textarea id="ocrText" rows="5" readonly placeholder="النص المستخرج من الفاتورة سيظهر هنا للمراجعة"></textarea>
 <button class="btn block" type="submit">حفظ على الجهاز</button></form></div>
 <div class="card"><h3>استرجاع الضمان بمسح الجهاز</h3><input id="lookup" placeholder="امسح أو اكتب السيريل نمبر / الباركود"><button class="btn secondary" type="button" id="lookupScan">مسح الرمز</button><div id="lookupResult" role="status"></div></div><div class="card"><h3>الضمانات التي تحتاج متابعة</h3><div id="reminders"></div></div><div class="card"><div class="row"><h3>السجلات المحفوظة</h3><span id="count"></span></div><input id="search" placeholder="بحث عن محل أو منتج أو رقم"><div id="records"></div></div>
 <div class="card"><h3>الأرشيف — 30 يومًا بعد انتهاء الضمان</h3><div id="archive"></div></div><div class="card"><h3>النسخ الاحتياطي</h3><button class="btn secondary" id="export" type="button">تصدير JSON</button><p class="muted">النسخة تشمل الصور وقد تكون كبيرة. استورد الملفات فقط من مصدر موثوق.</p><input id="import" type="file" accept="application/json,.json" aria-label="استيراد نسخة احتياطية"></div>
@@ -56,7 +56,7 @@ async function extractSelectedReceipt(){
  try{
   if(!window.Tesseract)throw Error('محرك OCR غير متاح. تأكد من اتصال التحميل الأول ثم أعد فتح الصفحة.');
   if(!ocrWorker)ocrWorker=await Tesseract.createWorker('ara+eng',1,{workerPath:new URL('./ocr/worker.min.js',location.href).href,corePath:new URL('./ocr/tesseract-core-simd-lstm.wasm.js',location.href).href,langPath:new URL('./ocr/',location.href).href,gzip:true});
-  const result=await ocrWorker.recognize(file);const raw=result.data.text||'';
+  const image=await prepareReceiptForOCR(file);const result=await ocrWorker.recognize(image);const raw=result.data.text||'';
   $('ocrText').value=raw;
   if(!raw.trim())throw Error('لم يُستخرج نص واضح من الصورة.');
   const parsed=parseReceiptText(raw);
@@ -67,16 +67,35 @@ async function extractSelectedReceipt(){
  finally{button.disabled=false}
 }
 
+async function prepareReceiptForOCR(file){
+ const bitmap=await createImageBitmap(file);
+ const scale=Math.min(2,2400/Math.max(bitmap.width,bitmap.height));
+ const canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close?.();
+ const pixels=ctx.getImageData(0,0,canvas.width,canvas.height);const p=pixels.data;
+ for(let i=0;i<p.length;i+=4){const v=.299*p[i]+.587*p[i+1]+.114*p[i+2];const contrast=Math.max(0,Math.min(255,(v-128)*1.4+128));p[i]=p[i+1]=p[i+2]=contrast}
+ ctx.putImageData(pixels,0,0);return canvas;
+}
 let receiptProcessing=false;
-$('extractReceipt').onclick=()=>{if(receiptProcessing)return;$('receipt').value='';$('receipt').click()};
-$('receipt').addEventListener('change',async()=>{
- if(!$('receipt').files?.[0]||receiptProcessing)return;
+$('extractReceipt').onclick=()=>{if(receiptProcessing)return;$('receiptCamera').value='';$('receiptCamera').click()};
+$('chooseReceipt').onclick=()=>{if(receiptProcessing)return;$('receipt').value='';$('receipt').click()};
+async function handleReceiptSelection(file){
+ if(!file||receiptProcessing)return;
  receiptProcessing=true;
- const ids=['merchant','country','governorate','wilayat','phones','warrantyNumber','product','serial','price','currency','warrantyMonths','date','end','details','ocrText'];
- for(const id of ids)$(id).value='';
- notify('فاتورة جديدة: تم تفريغ حقول الفاتورة السابقة. جارٍ استخراج بيانات الصورة الجديدة...');
- try{await extractSelectedReceipt()}finally{receiptProcessing=false}
+ try{
+  const ids=['merchant','country','governorate','wilayat','phones','warrantyNumber','product','serial','price','currency','warrantyMonths','date','end','details','ocrText'];
+  for(const id of ids)$(id).value='';
+  $('selectedReceiptName').textContent='الصورة المختارة: '+file.name;
+  notify('جارٍ استخراج بيانات الفاتورة الجديدة...');
+  await extractSelectedReceipt();
+ }finally{receiptProcessing=false}
+}
+$('receiptCamera').addEventListener('change',async()=>{
+ const file=$('receiptCamera').files?.[0];if(!file)return;
+ const dt=new DataTransfer();dt.items.add(file);$('receipt').files=dt.files;
+ await handleReceiptSelection(file);
 });
+$('receipt').addEventListener('change',async()=>{await handleReceiptSelection($('receipt').files?.[0])});
 
 const dayMs=86400000;
 function updateExpiry(){const date=$('date').value,months=Number($('warrantyMonths').value);if(!date||!Number.isInteger(months)||months<=0)return;const [y,m,d]=date.split('-').map(Number);const first=new Date(Date.UTC(y,m-1+months,1));const last=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate();first.setUTCDate(Math.min(d,last));$('end').value=first.toISOString().slice(0,10)}
