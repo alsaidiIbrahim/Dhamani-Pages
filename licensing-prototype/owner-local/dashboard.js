@@ -27,6 +27,8 @@ async function load(name){
  }catch{if(sessionExpired)return;tbody.replaceChildren();const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=3;td.textContent='تعذر عرض البيانات';tr.append(td);tbody.append(tr);state.textContent='تعذر تحميل بعض البيانات؛ تحقق من الجلسة والخادم المحلي.';}
 }
 Promise.all(Object.keys(columns).map(load)).then(()=>{if(state.textContent==='جاري تحميل بيانات الجلسة...')state.textContent='تم تحميل بيانات الإدارة للقراءة فقط.';});
+// Refresh on returning to a backgrounded tab; a revoked session must not leave stale rows visible.
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!sessionExpired)Promise.all(Object.keys(columns).map(load));});
 
 document.getElementById('logout').addEventListener('click',async()=>{
  const button=document.getElementById('logout');button.disabled=true;
