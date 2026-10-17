@@ -98,8 +98,6 @@ function parseReceiptText(raw){
  if(!result.merchant&&shopLine)result.merchant=shopLine;
  if(result.product){result.product=result.product.replace(/\s+\d+\s+\d{1,7}[.,]\d{2,3}.*$/,'').trim();}
  if(!result.product){const englishItem=lines.find(x=>/\b(?:Samsung|Apple|iPhone|Galaxy|Sony|LG|Huawei|Lenovo|Dell|HP)\b/i.test(x)&&x.length<90);if(englishItem)result.product=englishItem.replace(/^[\s(]+|[\s)]+$/g,'').trim();}
- const invoiceNumber=text.match(/\bINV-[A-Z0-9-]{4,}\b/i);
- if(invoiceNumber&&!result.warrantyNumber)result.warrantyNumber='';
  if(/manufacturing defects|عيوب التصنيع/i.test(text))result.details='الضمان ضد عيوب التصنيع فقط. يرجى مراجعة الشروط والاستثناءات في الوثيقة الأصلية.';
  return result;
 }
