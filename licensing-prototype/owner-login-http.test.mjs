@@ -14,8 +14,8 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
  try{
   assert.equal(server.address().address,'127.0.0.1');
   const base='http://127.0.0.1:'+server.address().port;
-  async function post(path,data,cookie){
-   return fetch(base+path,{method:'POST',headers:{'content-type':'application/json',...(cookie?{cookie}:{})},body:JSON.stringify(data)});
+  async function post(path,data,cookie,csrf){
+   return fetch(base+path,{method:'POST',headers:{'content-type':'application/json',...(cookie?{cookie}:{}),...(csrf?{'x-csrf-token':csrf}:{})},body:JSON.stringify(data)});
   }
   const badHostStatus=await new Promise((resolve,reject)=>{
    const req=request({hostname:'127.0.0.1',port:server.address().port,path:'/owner/login/password',method:'POST',headers:{host:'other.example:1234','content-type':'application/json'}},res=>{res.resume();res.on('end',()=>resolve(res.statusCode));});
@@ -35,11 +35,14 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   const {challenge}=await first.json();
   const second=await post('/owner/login/totp',{challenge,code:totpCode(secret,3)});
   assert.equal(second.status,200);
+  const {csrfToken}=await second.json();
   const cookie=second.headers.get('set-cookie');
   assert.match(cookie,/HttpOnly/);
   assert.match(cookie,/SameSite=Strict/);
   assert.equal((await post('/owner/login/totp',{challenge,code:totpCode(secret,3)})).status,401);
-  assert.equal((await post('/owner/logout',{},cookie.split(';')[0])).status,200);
+  assert.equal((await post('/owner/logout',{},cookie.split(';')[0])).status,403);
+  assert.equal((await post('/owner/logout',{},cookie.split(';')[0],'invalid')).status,403);
+  assert.equal((await post('/owner/logout',{},cookie.split(';')[0],csrfToken)).status,200);
   assert.equal((await post('/owner/logout',{},cookie.split(';')[0])).status,403);
  }finally{await new Promise(resolve=>server.close(resolve));}
 });
