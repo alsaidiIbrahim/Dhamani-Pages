@@ -19,7 +19,7 @@ export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore}={}
   try{
    if(req.method==='POST'){
     const host=req.headers?.host;
-    if(typeof host!=='string'||!/^127\\.0\\.0\\.1:[0-9]{1,5}$/.test(host))return reply(res,403,{error:'forbidden'});
+    if(typeof host!=='string'||!/^127\.0\.0\.1:[0-9]{1,5}$/.test(host))return reply(res,403,{error:'forbidden'});
     const origin=req.headers?.origin;
     if(origin!==undefined&&origin!==`http://${host}`)return reply(res,403,{error:'forbidden'});
     const site=req.headers?.['sec-fetch-site'];
