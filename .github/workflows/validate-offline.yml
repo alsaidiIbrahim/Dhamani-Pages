@@ -33,6 +33,9 @@ jobs:
           if(!html.includes(protection))throw Error('Missing OCR overwrite confirmation');
           const emptyMerchant=parse(['هاتف المحل: +968 24123456','فاتورة ضريبية','مدة الضمان: 3 سنوات'].join(String.fromCharCode(10)));
           if(emptyMerchant.merchant&&/هاتف|24123456/.test(emptyMerchant.merchant))throw Error('Contact mistaken for merchant');
+          const noisy=['وصف المنتج الكمية السعر الإجمالي','هاتف سامسونج جالاكسي 1 560.000','(Samsung Galaxy Ultra)','المجموع الكلي: 0 ريال','مدة الضمان: 3 سنوات','SN-SAM-2026-GALAX-560OMR-3Y'].join(String.fromCharCode(10));
+          const noisyParsed=parse(noisy);
+          if(Number(noisyParsed.price)!==560)throw Error('Failed to recover product table price from OCR: '+JSON.stringify(noisyParsed));
           const sw=fs.readFileSync('offline-test/sw.js','utf8');new vm.Script(sw);
           console.log('PASS: JavaScript syntax, UI IDs, service worker syntax');
           NODE
