@@ -29,6 +29,12 @@ export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore,rep
     if(site!==undefined&&site!=='same-origin'&&site!=='none')return reply(res,403,{error:'forbidden'});
     if(req.headers?.['content-type']?.split(';')[0]?.trim().toLowerCase()!=='application/json')return reply(res,415,{error:'unsupported_media_type'});
    }
+   if(req.method==='GET'&&req.url==='/owner/dashboard.js'){
+    const principal=await authenticate(req);
+    if(!principal)return reply(res,403,{error:'forbidden'});
+    const script=await readFile(new URL('./owner-local/dashboard.js',import.meta.url),'utf8');
+    res.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});res.end(script);return;
+   }
    if(req.method==='GET'&&req.url==='/owner/dashboard'){
     const principal=await authenticate(req);
     if(!principal)return reply(res,403,{error:'forbidden'});
