@@ -1,0 +1,17 @@
+name: Test isolated license prototype
+on:
+  push:
+    paths:
+      - 'licensing-prototype/**'
+      - '.github/workflows/test-license-prototype.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test license engine
+        run: node --test licensing-prototype/engine.test.mjs
