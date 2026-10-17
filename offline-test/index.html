@@ -9,7 +9,7 @@
 <label for="serial">الرقم التسلسلي أو الباركود</label><input id="serial" maxlength="150" autocomplete="off"><button class="btn secondary" type="button" id="scan">مسح باركود بالكاميرا</button><button class="btn secondary" type="button" id="scanQR">مسح QR مخصص</button><input id="barcodePhoto" type="file" accept="image/*" capture="environment" hidden><p class="muted">إذا لم يدعم المتصفح قراءة الباركود، يمكنك إدخال الرقم المكتوب على الجهاز يدويًا.</p>
 <label for="price">سعر الشراء</label><input id="price" type="number" min="0" step="0.001"><label for="currency">العملة</label><input id="currency" maxlength="10" placeholder="OMR"><label for="warrantyMonths">مدة الضمان بالأشهر</label><input id="warrantyMonths" type="number" min="0" max="600" step="1" placeholder="مثال: 12"><label for="date">تاريخ الشراء</label><input id="date" type="date" required>
 <label for="end">انتهاء الضمان (يُحسب تلقائيًا عند إدخال المدة)</label><input id="end" type="date" required><label for="details">تفاصيل إضافية وشروط الضمان</label><textarea id="details" rows="3"></textarea>
-<label for="receipt">صورة الفاتورة الأصلية (اختياري)</label><input id="receipt" type="file" accept="image/*,application/pdf" capture="environment"><p class="muted">سيُحفظ الملف الأصلي مع السجل. استخراج النصوص تلقائيًا من الفاتورة غير مفعّل بعد.</p>
+<label for="receipt">صورة الفاتورة الأصلية (اختياري)</label><input id="receipt" type="file" accept="image/*,application/pdf" capture="environment"><button class="btn secondary" type="button" id="extractReceipt">استخراج بيانات الفاتورة تلقائيًا (تجريبي)</button><p class="muted">راجع البيانات المستخرجة وصححها قبل الحفظ. صورة الفاتورة الأصلية تُحفظ كما هي. قد يستغرق تحميل محرك OCR بعض الوقت في أول استخدام.</p><textarea id="ocrText" rows="5" readonly placeholder="النص المستخرج من الفاتورة سيظهر هنا للمراجعة"></textarea>
 <button class="btn block" type="submit">حفظ على الجهاز</button></form></div>
 <div class="card"><h3>استرجاع الضمان بمسح الجهاز</h3><input id="lookup" placeholder="امسح أو اكتب السيريل نمبر / الباركود"><button class="btn secondary" type="button" id="lookupScan">مسح الرمز</button><div id="lookupResult" role="status"></div></div><div class="card"><h3>الضمانات التي تحتاج متابعة</h3><div id="reminders"></div></div><div class="card"><div class="row"><h3>السجلات المحفوظة</h3><span id="count"></span></div><input id="search" placeholder="بحث عن محل أو منتج أو رقم"><div id="records"></div></div>
 <div class="card"><h3>الأرشيف — 30 يومًا بعد انتهاء الضمان</h3><div id="archive"></div></div><div class="card"><h3>النسخ الاحتياطي</h3><button class="btn secondary" id="export" type="button">تصدير JSON</button><p class="muted">النسخة تشمل الصور وقد تكون كبيرة. استورد الملفات فقط من مصدر موثوق.</p><input id="import" type="file" accept="application/json,.json" aria-label="استيراد نسخة احتياطية"></div>
@@ -22,6 +22,36 @@ const tx=(mode,action)=>new Promise((resolve,reject)=>{const t=db.transaction('r
 const all=()=>tx('readonly',s=>s.getAll());
 const notify=msg=>$('status').textContent=msg;
 function fileData(file){return new Promise((resolve,reject)=>{if(!file)return resolve(null);if(file.size>5*1024*1024)return reject(Error('حجم الملف أكبر من 5 ميجابايت'));const r=new FileReader;r.onload=()=>resolve({name:file.name,type:file.type,data:r.result});r.onerror=()=>reject(r.error);r.readAsDataURL(file)})}
+let ocrWorker=null;
+function parseReceiptText(raw){
+ const text=raw.replace(/\r/g,'');const lines=text.split('\n').map(x=>x.trim()).filter(Boolean);
+ const dateMatch=text.match(/(?:20\\d{2})[-/.](?:0?[1-9]|1[0-2])[-/.](?:[0-2]?\\d|3[01])|(?:[0-2]?\\d|3[01])[-/.](?:0?[1-9]|1[0-2])[-/.](?:20\\d{2})/);
+ const phoneMatches=[...text.matchAll(/(?:\\+?968[ -]?)?[279]\\d{7}/g)].map(m=>m[0]);
+ const months=text.match(/(?:warranty|guarantee|ضمان)[^\\n]{0,40}?(\\d{1,2})\\s*(?:months?|شهر|أشهر)/i)||text.match(/(\\d{1,2})\\s*(?:months?|شهر|أشهر)[^\\n]{0,20}(?:warranty|ضمان)/i);
+ const years=text.match(/(?:warranty|guarantee|ضمان)[^\\n]{0,40}?(\\d{1,2})\\s*(?:years?|سنوات?|سنة)/i)||text.match(/(\\d{1,2})\\s*(?:years?|سنوات?|سنة)[^\\n]{0,20}(?:warranty|ضمان)/i);
+ const price=text.match(/(?:total|grand total|الإجمالي|المجموع|المبلغ)[^\\n]{0,25}?(\\d+[.,]\\d{2,3})/i);
+ const serial=text.match(/(?:S\\/?N|serial(?:\\s*(?:no|number))?|الرقم التسلسلي|سيريال)[\\s:#-]*([A-Z0-9-]{5,})/i);
+ const date=dateMatch?.[0];let normalized='';
+ if(date){const parts=date.split(/[-/.]/).map(Number);if(parts[0]>1900)normalized=[parts[0],parts[1],parts[2]].map((n,i)=>i?String(n).padStart(2,'0'):n).join('-');else normalized=[parts[2],parts[1],parts[0]].map((n,i)=>i?String(n).padStart(2,'0'):n).join('-');}
+ return {merchant:lines[0]||'',phones:[...new Set(phoneMatches)].join(', '),date:normalized,months:months?Number(months[1]):years?Number(years[1])*12:0,price:price?.[1]||'',serial:serial?.[1]||''};
+}
+$('extractReceipt').onclick=async()=>{
+ const file=$('receipt').files?.[0];if(!file){notify('صوّر الفاتورة أولًا أو اختر صورتها.');return}
+ if(!file.type.startsWith('image/')){notify('قراءة OCR التجريبية تدعم صور الفواتير فقط، وليس PDF حاليًا.');return}
+ const button=$('extractReceipt');button.disabled=true;notify('جارٍ قراءة الفاتورة محليًا؛ قد يستغرق الأمر بعض الوقت...');
+ try{
+  if(!window.Tesseract)throw Error('لم يتم تحميل محرك OCR؛ حدّث الصفحة بعد اكتمال النشر.');
+  if(!ocrWorker)ocrWorker=await Tesseract.createWorker('ara+eng',1,{workerPath:'./ocr/worker.min.js',corePath:'./ocr/tesseract-core-simd-lstm.wasm.js',langPath:'./ocr/',gzip:true});
+  const result=await ocrWorker.recognize(file);const raw=result.data.text||'';
+  $('ocrText').value=raw;
+  if(!raw.trim())throw Error('لم يُستخرج نص واضح من الصورة.');
+  const parsed=parseReceiptText(raw);
+  for(const [key,value] of Object.entries({merchant:parsed.merchant,phones:parsed.phones,date:parsed.date,warrantyMonths:parsed.months||'',price:parsed.price,serial:parsed.serial})){if(value&&!$(key).value)$(key).value=value}
+  updateExpiry();
+  notify('اكتمل استخراج النص. راجع اسم المحل والأرقام والتاريخ والضمان وصحح أي أخطاء قبل الحفظ.');
+ }catch(e){notify('تعذر استخراج البيانات: '+e.message)}
+ finally{button.disabled=false}
+};
 const dayMs=86400000;
 function updateExpiry(){const date=$('date').value,months=Number($('warrantyMonths').value);if(!date||!Number.isInteger(months)||months<=0)return;const [y,m,d]=date.split('-').map(Number);const first=new Date(Date.UTC(y,m-1+months,1));const last=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate();first.setUTCDate(Math.min(d,last));$('end').value=first.toISOString().slice(0,10)}
 $('date').addEventListener('change',updateExpiry);$('warrantyMonths').addEventListener('input',updateExpiry);
@@ -111,4 +141,4 @@ $('search').oninput=()=>render().catch(e=>notify(e.message));
 $('export').onclick=async()=>{await ready;saveBlob(JSON.stringify({format:'dhamani-offline-v1',records:await all()}),'dhamani-local-backup.json');notify('تم إعداد النسخة الاحتياطية')};
 $('import').onchange=async e=>{try{await ready;const f=e.target.files[0];if(!f)return;if(f.size>40*1024*1024)throw Error('الملف كبير جدًا');const obj=JSON.parse(await f.text());if(obj.format!=='dhamani-offline-v1'||!Array.isArray(obj.records)||obj.records.length>1000)throw Error('صيغة غير صحيحة');for(const x of obj.records){if(!x||typeof x.id!=='string'||typeof x.merchant!=='string'||typeof x.product!=='string'||typeof x.created!=='string')throw Error('بيانات غير صالحة');}if(!confirm('استيراد '+obj.records.length+' سجل إلى هذا الجهاز؟'))return;for(const x of obj.records)await tx('readwrite',s=>s.put(x));notify('اكتمل الاستيراد');await render()}catch(err){notify('فشل الاستيراد: '+err.message)}};
 ready.then(render).catch(e=>notify('تعذر فتح التخزين المحلي: '+e.message));
-</script><script src="./zxing.min.js"></script><script src="./jsQR.min.js"></script><script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("SW unavailable",e)));</script></body></html>
+</script><script src="./ocr/tesseract.min.js"></script><script src="./zxing.min.js"></script><script src="./jsQR.min.js"></script><script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("SW unavailable",e)));</script></body></html>
