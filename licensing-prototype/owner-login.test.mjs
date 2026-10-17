@@ -41,3 +41,27 @@ test('expired challenges and repeated wrong TOTP attempts are rejected',()=>{
  for(let i=0;i<5;i++)assert.throws(()=>login.verifyTotpAndIssueSession({challenge:second.challenge,totpCode:'invalid',totpVerifier:verifier}),/mfa_required/);
  assert.throws(()=>login.verifyTotpAndIssueSession({challenge:second.challenge,totpCode:totpCode(secret,13),totpVerifier:verifier}),/mfa_required/);
 });
+
+test('invalid session lifetime does not consume challenge or TOTP',()=>{
+ let now=90_000;
+ const secret=Buffer.alloc(32,9),verifier=new OwnerTotpVerifier({secret,now:()=>now});
+ const sessionStore=new OwnerSessionStore({now:()=>now});
+ const login=new OwnerLoginPrototype({ownerId:'owner',passwordRecord:createPasswordVerifier('correct horse battery staple'),sessionStore,now:()=>now});
+ const first=login.verifyFirstFactor('correct horse battery staple');
+ const code=totpCode(secret,3);
+ assert.throws(()=>login.verifyTotpAndIssueSession({challenge:first.challenge,totpCode:code,totpVerifier:verifier,ttlMs:999999999}),/invalid_session_lifetime/);
+ assert.equal(login.pending.has(first.challenge),true);
+ const token=login.verifyTotpAndIssueSession({challenge:first.challenge,totpCode:code,totpVerifier:verifier});
+ assert.equal(sessionStore.verify(token).role,'owner');
+});
+test('expired challenges are cleaned before new password challenges',()=>{
+ let now=90_000;
+ const login=new OwnerLoginPrototype({ownerId:'owner',passwordRecord:createPasswordVerifier('correct horse battery staple'),sessionStore:new OwnerSessionStore({now:()=>now}),now:()=>now});
+ const first=login.verifyFirstFactor('correct horse battery staple');
+ assert.equal(login.pending.size,1);
+ now+=300001;
+ const second=login.verifyFirstFactor('correct horse battery staple');
+ assert.notEqual(first.challenge,second.challenge);
+ assert.equal(login.pending.size,1);
+ assert.equal(login.pending.has(first.challenge),false);
+});
