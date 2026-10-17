@@ -39,3 +39,20 @@ test('owner read endpoint denies missing and non-MFA sessions',async()=>{
  const response=res();await handler({method:'GET',url:'/owner/orders',headers:{cookie:'dhamani_owner_session='+valid}},response);
  assert.equal(response.status,200);assert.equal(reads,1);
 });
+
+test('session store caps lifetime and cleans revoked or expired sessions',()=>{
+ let now=1000;
+ const store=new OwnerSessionStore({now:()=>now,maxLifetimeMs:5000});
+ const a=token(),b=token(),c=token();
+ assert.throws(()=>store.add({token:a,ownerId:'owner',expiresAt:6001,mfaVerified:true}),/invalid_session/);
+ store.add({token:a,ownerId:'owner',expiresAt:2000,mfaVerified:true});
+ store.add({token:b,ownerId:'owner',expiresAt:5000,mfaVerified:true});
+ store.add({token:c,ownerId:'owner',expiresAt:5000,mfaVerified:true});
+ assert.equal(store.revoke(b),true);
+ now=2000;
+ assert.equal(store.cleanup(),2);
+ assert.equal(store.sessions.size,1);
+ assert.equal(store.verify(a),null);
+ assert.equal(store.verify(b),null);
+ assert.equal(store.verify(c).role,'owner');
+});
