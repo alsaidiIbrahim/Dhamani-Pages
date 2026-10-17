@@ -33,5 +33,9 @@ jobs:
           node-version: '22'
       - name: Install temporary PostgreSQL test driver
         run: npm install --no-save --no-package-lock --ignore-scripts pg@8
+      - name: Initialize isolated PostgreSQL test schema before concurrent test files
+        run: |
+          psql "$DHAMANI_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f licensing-prototype/postgres/001_schema.sql
+          psql "$DHAMANI_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f licensing-prototype/postgres/003_owner_auth_proposal.sql
       - name: Run real PostgreSQL transaction tests
         run: node --test licensing-prototype/postgres-integration.test.mjs licensing-prototype/postgres-owner-challenge-integration.test.mjs licensing-prototype/postgres-owner-totp-replay-integration.test.mjs
