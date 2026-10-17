@@ -9,6 +9,7 @@ export class OwnerSessionStore {
   if(typeof token!=='string'||token.length<32||typeof ownerId!=='string'||!ownerId||!Number.isFinite(expiresAt)||expiresAt<=this.now()||expiresAt-this.now()>this.maxLifetimeMs)throw Error('invalid_session');
   this.sessions.set(hash(token).toString('hex'),{ownerId,expiresAt,mfaVerified,revoked:false,csrfHash:null});
  }
+ expiresAt(token){const entry=typeof token==='string'?this.sessions.get(hash(token).toString('hex')):null;return entry&&!entry.revoked&&entry.mfaVerified&&entry.expiresAt>this.now()?entry.expiresAt:null;}
  issueCsrf(token){const entry=typeof token==='string'?this.sessions.get(hash(token).toString('hex')):null;if(!entry||entry.revoked||entry.expiresAt<=this.now()||!entry.mfaVerified)return null;const csrf=randomBytes(32).toString('base64url');entry.csrfHash=hash(csrf);return csrf;}
  verifyCsrf(token,csrf){if(typeof token!=='string'||typeof csrf!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(csrf))return false;const entry=this.sessions.get(hash(token).toString('hex'));return Boolean(entry&&!entry.revoked&&entry.expiresAt>this.now()&&entry.mfaVerified&&entry.csrfHash&&timingSafeEqual(entry.csrfHash,hash(csrf)));}
  cleanup(){let removed=0;for(const [key,entry] of this.sessions){if(entry.revoked||entry.expiresAt<=this.now()){this.sessions.delete(key);removed++;}}return removed;}
