@@ -31,7 +31,7 @@
 <label for="extraReceipts">صور إضافية لنفس الفاتورة (اختياري)</label><input id="extraReceipts" type="file" accept="image/*,application/pdf" multiple><p class="muted">يمكن إرفاق صور متعددة لنفس الضمان؛ تُحفظ الملفات الأصلية مع السجل.</p><button class="btn block" type="submit">حفظ الفاتورة</button></form></div>
 <div class="card"><details><summary>تشخيص الكاميرا والقارئ</summary><button id="scannerDiag" type="button" class="btn secondary">تشخيص الكاميرا والقارئ</button><pre id="scannerDiagResult" style="white-space:pre-wrap;direction:ltr;text-align:left;font-size:12px"></pre></details></div>
 <div class="card"><h3>استرجاع الضمان بمسح الجهاز</h3><input id="lookup" placeholder="امسح أو اكتب السيريل نمبر / الباركود"><button class="btn secondary" type="button" id="lookupScan">مسح الرمز</button><div id="lookupResult" role="status"></div></div><div class="card"><h3>الضمانات التي تحتاج متابعة</h3><div id="reminders"></div></div><div class="card"><div class="row"><h3>مكتبة الفواتير — الأحدث أولًا</h3><span id="count"></span></div><input id="search" placeholder="بحث عن محل أو منتج أو رقم"><div id="records"></div></div>
-<div class="card"><h3>الأرشيف — 30 يومًا بعد انتهاء الضمان</h3><div id="archive"></div></div><div id="receiptDetails" class="card" hidden><h3>تفاصيل الفاتورة المحددة</h3><div id="receiptDetailsContent"></div><button class="btn secondary" id="closeReceiptDetails" type="button">إغلاق التفاصيل</button></div><div class="card"><h3>النسخ الاحتياطي</h3><p class="muted">مهم على iPhone: لا تضمن Safari الاحتفاظ بالبيانات المحلية إلى الأبد. صدّر نسخة JSON دورياً إلى تطبيق الملفات أو iCloud Drive، وتحقق من وجود الملف. لا تعتمد على النسخة المحلية وحدها.</p><button class="btn secondary" id="export" type="button">تصدير JSON</button><p class="muted">النسخة تشمل الصور وقد تكون كبيرة. استورد الملفات فقط من مصدر موثوق.</p><input id="import" type="file" accept="application/json,.json" aria-label="استيراد نسخة احتياطية"><div id="importReview" class="card" hidden><p id="importSummary" role="status"></p><button id="importConfirm" class="btn" type="button">تأكيد استيراد النسخة</button> <button id="importCancel" class="btn secondary" type="button">إلغاء</button></div></div>
+<div class="card"><h3>الأرشيف — 30 يومًا بعد انتهاء الضمان</h3><div id="archive"></div></div><div id="receiptDetails" class="card" hidden><h3>تفاصيل الفاتورة المحددة</h3><div id="receiptDetailsContent"></div><button class="btn secondary" id="closeReceiptDetails" type="button">إغلاق التفاصيل</button></div><div class="card"><h3>النسخ الاحتياطي</h3><p class="muted">مهم على iPhone: لا تضمن Safari الاحتفاظ بالبيانات المحلية إلى الأبد. صدّر نسخة JSON دورياً إلى تطبيق الملفات أو iCloud Drive، وتحقق من وجود الملف. لا تعتمد على النسخة المحلية وحدها.</p><button class="btn secondary" id="export" type="button">تصدير JSON</button><p class="muted">النسخة تشمل الصور وقد تكون كبيرة. استورد الملفات فقط من مصدر موثوق.</p><input id="import" type="file" accept="application/json,.json" aria-label="استيراد نسخة احتياطية"><div id="importResult" class="card" role="status" hidden></div><div id="importReview" class="card" hidden><p id="importSummary" role="status"></p><button id="importConfirm" class="btn" type="button">تأكيد استيراد النسخة</button> <button id="importCancel" class="btn secondary" type="button">إلغاء</button></div></div>
 </main><script>
 'use strict';
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -398,9 +398,23 @@ $('importConfirm').onclick=async()=>{
    for(const x of records)s.put(x);
    t.oncomplete=resolve;t.onerror=()=>reject(t.error);t.onabort=()=>reject(t.error||Error('تم إلغاء العملية'));
   });
+  const stored=await all(),byId=new Map(stored.map(x=>[x.id,x]));
+  const verified=records.filter(x=>byId.has(x.id));
+  if(verified.length!==records.length)throw Error('لم تُستعد كل السجلات؛ تم التحقق من '+verified.length+' من '+records.length);
+  const missingImages=records.filter(x=>x.receipt?.data&&byId.get(x.id)?.receipt?.data!==x.receipt.data);
+  if(missingImages.length)throw Error('تم العثور على '+missingImages.length+' فاتورة فقدت صورتها أثناء الاستعادة');
+  // Do not run expiry cleanup immediately after restoring a backup.
+  // A restored expired invoice must remain accessible for review.
+  $('search').value='';
+  const active=verified.filter(x=>!['archive','delete'].includes(archiveState(x).kind));
+  const archived=verified.filter(x=>['archive','delete'].includes(archiveState(x).kind));
+  $('records').innerHTML=active.length?active.map(x=>receiptCard(x)).join(''):'<p class="muted">لا توجد سجلات نشطة ضمن النسخة المستعادة.</p>';
+  $('archive').innerHTML=archived.length?archived.map(x=>receiptCard(x,true)).join(''):'<p class="muted">الأرشيف فارغ.</p>';
+  $('count').textContent=stored.filter(x=>!['archive','delete'].includes(archiveState(x).kind)).length+' سجل نشط';
+  $('importResult').hidden=false;
+  $('importResult').textContent='تم التحقق من حفظ '+verified.length+' فاتورة في قاعدة البيانات، منها '+active.length+' نشطة و'+archived.length+' في الأرشيف. تم إلغاء فلتر البحث. إذا لم تجد الفاتورة في القائمة، تحقق من قسم الأرشيف أسفلها.';
   resetImportReview();
-  notify('اكتمل الاستيراد بنجاح: '+records.length+' سجل.');
-  await render();
+  notify('تم الاستيراد والتحقق من وجود السجلات وصورها في التخزين المحلي.');
  }catch(err){notify('فشل الاستيراد: '+err.message);$('importSummary').textContent='فشل الاستيراد: '+err.message;}
  finally{$('importConfirm').disabled=false;}
 };
