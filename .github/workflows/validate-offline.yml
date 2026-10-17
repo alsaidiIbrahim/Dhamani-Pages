@@ -67,8 +67,8 @@ jobs:
             // Verify attached image survives export and atomic import.
             const pixel='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9mS7sAAAAASUVORK5CYII=';
             const fixture={format:'dhamani-offline-v1',records:[{...original[0],id:'imported-test',product:'نسخة مستعادة',receipt:{name:'invoice.png',type:'image/png',data:pixel},attachments:[{name:'extra.png',type:'image/png',data:pixel}]}]};
-            await page.locator('#import').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
             page.once('dialog',d=>d.accept());
+            await page.locator('#import').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
             await page.waitForTimeout(400);
             const restored=await page.evaluate(async()=>new Promise((resolve,reject)=>{
               const r=indexedDB.open('dhamani-offline-v1',1);
