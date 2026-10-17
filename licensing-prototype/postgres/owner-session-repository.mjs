@@ -27,6 +27,11 @@ export class PostgresOwnerSessionRepository {
   const result=await this.pool.query("SELECT 1 FROM owner_auth_sessions WHERE session_hash=$1 AND csrf_hash=$2 AND mfa_verified=TRUE AND revoked_at IS NULL AND expires_at>$3 AND last_activity_at>$3-($4::bigint * interval '1 millisecond')",[digest(token),digest(csrf),now,this.maxIdleMs]);
   return result.rowCount===1;
  }
+ async revokeWithCsrf({token,csrf,now=new Date()}={}){
+  if(typeof token!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(token)||typeof csrf!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(csrf)||!(now instanceof Date)||!Number.isFinite(now.getTime()))return false;
+  const result=await this.pool.query("UPDATE owner_auth_sessions SET revoked_at=$3,csrf_hash=NULL WHERE session_hash=$1 AND csrf_hash=$2 AND mfa_verified=TRUE AND revoked_at IS NULL AND expires_at>$3 AND last_activity_at>$3-($4::bigint * interval '1 millisecond') RETURNING session_hash",[digest(token),digest(csrf),now,this.maxIdleMs]);
+  return result.rowCount===1;
+ }
  async revoke({token,now=new Date()}={}){
   if(typeof token!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(token)||!(now instanceof Date)||!Number.isFinite(now.getTime()))return false;
   const result=await this.pool.query('UPDATE owner_auth_sessions SET revoked_at=$2 WHERE session_hash=$1 AND revoked_at IS NULL RETURNING session_hash',[digest(token),now]);
