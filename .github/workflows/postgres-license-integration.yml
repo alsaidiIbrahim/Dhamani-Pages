@@ -34,4 +34,4 @@ jobs:
       - name: Install temporary PostgreSQL test driver
         run: npm install --no-save --no-package-lock --ignore-scripts pg@8
       - name: Run real PostgreSQL transaction tests
-        run: node --test licensing-prototype/postgres-integration.test.mjs
+        run: node --test licensing-prototype/postgres-integration.test.mjs licensing-prototype/postgres-owner-challenge-integration.test.mjs
