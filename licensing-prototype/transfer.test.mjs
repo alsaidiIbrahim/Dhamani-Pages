@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {generateKeyPairSync,sign} from 'node:crypto';
+import {LicenseEngine} from './engine.mjs';
+test('admin transfer requires new device private key, is one-time, and invalidates old device',()=>{
+ const e=new LicenseEngine();
+ const {activationToken,licenseId}=e.approve(e.order().id);
+ const old=generateKeyPairSync('ed25519'),next=generateKeyPairSync('ed25519'),attacker=generateKeyPairSync('ed25519');
+ const pub=k=>k.publicKey.export({format:'pem',type:'spki'});
+ e.activate(activationToken,pub(old));
+ const ch=e.issueTransferChallenge(licenseId,pub(next));
+ const msg=Buffer.from('dhamani-device-proof-v1:transfer:'+ch.id+':'+ch.nonce);
+ const wrong=sign(null,msg,attacker.privateKey).toString('base64url');
+ assert.throws(()=>e.completeTransferChallenge(licenseId,ch.id,wrong),/invalid_device_proof/);
+ assert.throws(()=>e.completeTransferChallenge(licenseId,ch.id,sign(null,msg,next.privateKey).toString('base64url')),/challenge_not_found/);
+ const good=e.issueTransferChallenge(licenseId,pub(next));
+ const signature=sign(null,Buffer.from('dhamani-device-proof-v1:transfer:'+good.id+':'+good.nonce),next.privateKey).toString('base64url');
+ assert.equal(e.completeTransferChallenge(licenseId,good.id,signature).revision,1);
+ assert.throws(()=>e.verify(activationToken,pub(old)),/device_not_authorized/);
+ assert.equal(LicenseEngine.verifyCertificate(e.verify(activationToken,pub(next)),e.publicKey).revision,1);
+ assert.throws(()=>e.completeTransferChallenge(licenseId,good.id,signature),/challenge_not_found/);
+});
