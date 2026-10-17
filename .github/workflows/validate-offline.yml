@@ -76,6 +76,17 @@ jobs:
               r.onerror=()=>reject(r.error)
             }));
             if(!restored||restored.receipt?.data!==pixel||restored.attachments?.[0]?.data!==pixel)throw Error('Backup restore lost receipt images');
+            // Test offline reload after service worker activation and preservation of data.
+            await page.goto('http://127.0.0.1:8765/index.html',{waitUntil:'load'});
+            await page.evaluate(async()=>{
+              if(!('serviceWorker' in navigator))throw Error('Service workers unavailable');
+              await navigator.serviceWorker.ready;
+            });
+            await page.reload({waitUntil:'load'});
+            await page.context().setOffline(true);
+            await page.reload({waitUntil:'domcontentloaded'});
+            await page.locator('#records').getByText('نسخة مستعادة').waitFor();
+            await page.context().setOffline(false);
             if(errors.length)throw Error('Browser errors: '+errors.join('; '));
             await browser.close();console.log('PASS: create, expiry, save, edit');
           })().catch(e=>{console.error(e);process.exit(1)});
