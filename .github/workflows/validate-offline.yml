@@ -1,0 +1,28 @@
+name: Validate offline notebook
+on:
+  push:
+    paths:
+      - 'offline-test/index.html'
+      - 'offline-test/sw.js'
+      - '.github/workflows/validate-offline.yml'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate JavaScript and UI controls
+        run: |
+          node <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const html=fs.readFileSync('offline-test/index.html','utf8');
+          const inline=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(x=>x[1]).filter(Boolean);
+          if(inline.length<1)throw Error('Missing app script');
+          for(const js of inline)new vm.Script(js);
+          for(const id of ['addInvoice','invoicePanel','product','warrantyMonths','date','end','merchant','country','serial','scan','scanQR','extractReceipt','chooseReceipt','receipt','extraReceipts','records','archive','export','import'])if(!html.includes('id="'+id+'"'))throw Error('Missing '+id);
+          const sw=fs.readFileSync('offline-test/sw.js','utf8');new vm.Script(sw);
+          console.log('PASS: JavaScript syntax, UI IDs, service worker syntax');
+          NODE
