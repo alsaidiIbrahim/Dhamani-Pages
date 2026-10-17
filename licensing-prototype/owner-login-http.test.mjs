@@ -45,6 +45,7 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   assert.match(await loginScript.text(),/owner\/login\/totp/);
 
   assert.equal((await fetch(base+'/owner/dashboard.js')).status,403);
+  assert.equal((await fetch(base+'/owner/csrf')).status,403);
   const foreign=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'application/json',origin:'https://untrusted.example'},body:JSON.stringify({password:'correct horse battery staple'})});
   assert.equal(foreign.status,403);
   const badType=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'text/plain'},body:'hello'});
@@ -67,7 +68,14 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   assert.match(await dashboard.text(),/لوحة الإدارة المحلية/);
   const dashboardScript=await fetch(base+'/owner/dashboard.js',{headers:{cookie:cookie.split(';')[0]}});
   assert.equal(dashboardScript.status,200);
-  assert.match(await dashboardScript.text(),/textContent/);
+  const dashboardScriptText=await dashboardScript.text();
+  assert.match(dashboardScriptText,/textContent/);
+  assert.match(dashboardScriptText,/owner\/csrf/);
+  assert.match(dashboardScriptText,/owner\/logout/);
+  const csrfResponse=await fetch(base+'/owner/csrf',{headers:{cookie:cookie.split(';')[0]}});
+  assert.equal(csrfResponse.status,200);
+  const refreshedCsrf=(await csrfResponse.json()).csrfToken;
+  assert.equal(typeof refreshedCsrf,'string');
   const authorized=await fetch(base+'/owner/orders',{headers:{cookie:cookie.split(';')[0]}});
   assert.equal(authorized.status,200);
   assert.deepEqual((await authorized.json()).items,[{id:'DEMO-1'}]);
@@ -82,9 +90,11 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   assert.equal((await post('/owner/login/totp',{challenge,code:totpCode(secret,3)})).status,401);
   assert.equal((await post('/owner/logout',{},cookie.split(';')[0])).status,403);
   assert.equal((await post('/owner/logout',{},cookie.split(';')[0],'invalid')).status,403);
-  assert.equal((await post('/owner/logout',{},cookie.split(';')[0],csrfToken)).status,200);
+  assert.equal((await post('/owner/logout',{},cookie.split(';')[0],csrfToken)).status,403);
+  assert.equal((await post('/owner/logout',{},cookie.split(';')[0],refreshedCsrf)).status,200);
   assert.equal((await fetch(base+'/owner/orders',{headers:{cookie:cookie.split(';')[0]}})).status,403);
   assert.equal((await fetch(base+'/owner/dashboard',{headers:{cookie:cookie.split(';')[0]}})).status,403);
+  assert.equal((await fetch(base+'/owner/csrf',{headers:{cookie:cookie.split(';')[0]}})).status,403);
   assert.equal((await post('/owner/logout',{},cookie.split(';')[0])).status,403);
  }finally{await new Promise(resolve=>server.close(resolve));}
 });
