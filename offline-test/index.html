@@ -78,6 +78,13 @@ function parseReceiptText(raw){
  result.phones=[...new Set(phoneLines.flatMap(x=>[...x.matchAll(/(?:\+?\d[\d\s-]{7,16})/g)].map(m=>m[0].trim())))].join('، ');
  const productLine=lines.find(x=>/(?:product|item\s*name|description|اسم\s*المنتج|الصنف)\s*[:：]/i.test(x)&&x.length<130);
  if(productLine)result.product=productLine.replace(/^.*?(?:product|item\s*name|description|اسم\s*المنتج|الصنف)\s*[:：]\s*/i,'').trim();
+ const contactPattern=/(?:هاتف\s*المحل|واتساب|phone|mobile|tel\b)/i;
+ if(result.merchant&&contactPattern.test(result.merchant))result.merchant='';
+ if(!result.merchant){const h=lines.slice(0,5).find(x=>x.length>=8&&x.length<=70&&/[\u0600-\u06FF]/.test(x)&&!/(?:فاتورة|ضمان|هاتف|واتساب|تاريخ|محافظة|ولاية|سلطنة|بيع|صيانة)/.test(x));if(h)result.merchant=h;}
+ if(!result.product){const item=lines.find(x=>/(?:هاتف|حاسوب|لابتوب|تلفاز|ثلاجة|غسالة|مكيف|طابعة|جهاز)\s+.{3,}/.test(x)&&!/(?:هاتف\s*المحل|رقم\s*الهاتف|هاتف\s*العميل|واتساب|صيانة\s*الهواتف)/.test(x)&&x.length<100);if(item)result.product=item.trim();}
+ const loc=lines.find(x=>/(?:محافظة|ولاية)/.test(x));
+ if(loc){const g=loc.match(/محافظة\s+([\u0600-\u06FF]{3,})/),w=loc.match(/ولاية\s+([\u0600-\u06FF]{3,})/);if(g)result.governorate=g[1];if(w)result.wilayat=w[1];}
+ const printedSerial=text.match(/\bSN-[A-Z0-9-]{7,}\b/i);if(printedSerial&&!result.serial)result.serial=printedSerial[0];
  if(/manufacturing defects|عيوب التصنيع/i.test(text))result.details='الضمان ضد عيوب التصنيع فقط. يرجى مراجعة الشروط والاستثناءات في الوثيقة الأصلية.';
  return result;
 }
