@@ -6,7 +6,7 @@
 <div class="card"><h3>إضافة فاتورة محلية</h3><form id="form">
 <label for="merchant">المحل</label><input id="merchant" required maxlength="150">
 <label for="product">اسم المنتج</label><input id="product" required maxlength="150">
-<label for="serial">الرقم التسلسلي أو الباركود</label><input id="serial" maxlength="150" autocomplete="off"><button class="btn secondary" type="button" id="scan">مسح باركود بالكاميرا</button><input id="barcodePhoto" type="file" accept="image/*" capture="environment" hidden><p class="muted">إذا لم يدعم المتصفح قراءة الباركود، يمكنك إدخال الرقم المكتوب على الجهاز يدويًا.</p>
+<label for="serial">الرقم التسلسلي أو الباركود</label><input id="serial" maxlength="150" autocomplete="off"><button class="btn secondary" type="button" id="scan">مسح باركود بالكاميرا</button><button class="btn secondary" type="button" id="scanQR">مسح QR مخصص</button><input id="barcodePhoto" type="file" accept="image/*" capture="environment" hidden><p class="muted">إذا لم يدعم المتصفح قراءة الباركود، يمكنك إدخال الرقم المكتوب على الجهاز يدويًا.</p>
 <label for="date">تاريخ الشراء</label><input id="date" type="date" required>
 <label for="end">انتهاء الضمان</label><input id="end" type="date" required>
 <label for="receipt">صورة الفاتورة (اختياري)</label><input id="receipt" type="file" accept="image/*,application/pdf">
@@ -31,17 +31,17 @@ $('scannerDiag').onclick=async()=>{const lines=[];const log=s=>{lines.push(s);$(
 function beep(){try{const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return;const ctx=new AudioCtx(),osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';osc.frequency.value=1100;gain.gain.setValueAtTime(0.08,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.16);osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+0.16);osc.onended=()=>ctx.close()}catch(e){console.warn('Beep unavailable',e)}}
 function stopLive(){if(liveControls){liveControls.stop();liveControls=null}const v=$('scanVideo');if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null}$('liveScanner').hidden=true}
 $('stopScan').onclick=stopLive;
-async function scanCode(target){
+async function scanCode(target,qrOnly=false){
  if(window.ZXingOffline?.startCamera&&navigator.mediaDevices?.getUserMedia){
   try{
-   stopLive();$('liveScanner').hidden=false;notify('جارٍ تشغيل الكاميرا المباشرة...');scanLog('START live camera '+new Date().toISOString());
+   stopLive();$('liveScanner').hidden=false;notify('جارٍ تشغيل الكاميرا المباشرة...');scanLog('START live camera '+(qrOnly?'QR ONLY ':'ALL ') +new Date().toISOString());
    let accepted=false;
    liveControls=await window.ZXingOffline.startCamera($('scanVideo'),async (value,format)=>{
     if(accepted||!value)return;accepted=true;
     $(target).value=value.trim();scanLog('DECODE SUCCESS format '+format+' length '+value.length);beep();stopLive();
     notify('تمت قراءة الرمز بنجاح: '+value+' — أكمل البيانات واضغط حفظ.');
     if(target==='lookup')await lookup();
-   });scanLog('STREAM READY '+$('scanVideo').videoWidth+'x'+$('scanVideo').videoHeight);notify('الكاميرا تعمل. قرّب الرمز داخل الإطار وثبّت الهاتف.');return;
+   },qrOnly);scanLog('STREAM READY '+$('scanVideo').videoWidth+'x'+$('scanVideo').videoHeight);notify('الكاميرا تعمل. قرّب الرمز داخل الإطار وثبّت الهاتف.');return;
   }catch(err){scanLog('STREAM ERROR: '+err.name+': '+err.message);stopLive();notify('تعذر تشغيل المسح المباشر: '+err.message+'؛ سيتم فتح التصوير كبديل.');}
  }
 
@@ -75,7 +75,7 @@ async function scanCode(target){
  };
  input.click();
 }
-$('scan').onclick=()=>scanCode('serial');
+$('scan').onclick=()=>scanCode('serial');$('scanQR').onclick=()=>scanCode('serial',true);
 $('lookupScan').onclick=()=>scanCode('lookup');
 $('lookup').onchange=()=>lookup().catch(e=>notify(e.message));
 function saveBlob(text,name){const a=document.createElement('a');const url=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
