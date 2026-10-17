@@ -50,7 +50,7 @@ export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore,rep
    if(req.method==='POST'&&req.url==='/owner/login/totp'){
     const body=await jsonBody(req);
     let token;
-    try{token=login.verifyTotpAndIssueSession({challenge:body.challenge,totpCode:body.code,totpVerifier});}
+    try{token=login.verifyTotpAndIssueSession({challenge:body.challenge,totpCode:body.code});}
     catch{return reply(res,401,{error:'invalid_credentials'});}
     const csrfToken=sessionStore.issueCsrf(token);
     return reply(res,200,{authenticated:true,csrfToken},{'set-cookie':`dhamani_owner_session=${token}; HttpOnly; SameSite=Strict; Path=/owner; Max-Age=1800`});
