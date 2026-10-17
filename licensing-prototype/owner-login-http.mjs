@@ -36,14 +36,17 @@ export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore}={}
     let token;
     try{token=login.verifyTotpAndIssueSession({challenge:body.challenge,totpCode:body.code,totpVerifier});}
     catch{return reply(res,401,{error:'invalid_credentials'});}
-    return reply(res,200,{authenticated:true},{'set-cookie':`dhamani_owner_session=${token}; HttpOnly; SameSite=Strict; Path=/owner; Max-Age=1800`});
+    const csrfToken=sessionStore.issueCsrf(token);
+    return reply(res,200,{authenticated:true,csrfToken},{'set-cookie':`dhamani_owner_session=${token}; HttpOnly; SameSite=Strict; Path=/owner; Max-Age=1800`});
    }
    if(req.method==='POST'&&req.url==='/owner/logout'){
     const auth=await authenticate(req);
     if(!auth)return reply(res,403,{error:'forbidden'});
     const cookies=String(req.headers?.cookie||'').split(';').map(x=>x.trim());
     const cookie=cookies.find(x=>x.startsWith('dhamani_owner_session='));
-    if(cookie)sessionStore.revoke(cookie.slice('dhamani_owner_session='.length));
+    const sessionToken=cookie?.slice('dhamani_owner_session='.length);
+    if(!sessionStore.verifyCsrf(sessionToken,req.headers?.['x-csrf-token']))return reply(res,403,{error:'forbidden'});
+    sessionStore.revoke(sessionToken);
     return reply(res,200,{authenticated:false},{'set-cookie':'dhamani_owner_session=; HttpOnly; SameSite=Strict; Path=/owner; Max-Age=0'});
    }
    return reply(res,404,{error:'not_found'});
