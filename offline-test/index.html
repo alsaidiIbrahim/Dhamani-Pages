@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0b6e4f"><title>ضماني — دفتر دون إنترنت</title><link rel="stylesheet" href="./styles.css"><link rel="manifest" href="./manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"></head>
 <body><header class="topbar"><div class="brand"><span class="logo">✓</span><div><strong>ضماني</strong><small>دفتر محلي دون إنترنت</small></div></div><span class="muted">نسخة اختبار مستقلة</span></header>
 <main class="view"><h2>فواتيري المحلية</h2><p class="muted">تُحفظ هذه البيانات على هذا الجهاز فقط. لا توجد مزامنة مع حسابك السحابي بعد. احتفظ بنسخة احتياطية، ولا تحذف بيانات المتصفح.</p>
-<div id="status" role="status" class="muted"></div>
+<div id="status" role="status" class="muted"></div><div id="liveScanner" class="card" hidden><h3>ماسح ضماني المباشر</h3><video id="scanVideo" autoplay playsinline muted style="width:100%;max-height:340px;background:#111;border-radius:12px;object-fit:contain"></video><p class="muted">وجّه الكاميرا إلى QR أو الباركود الخطي وثبّتها قليلًا. سيصدر صوت عند نجاح القراءة.</p><button id="stopScan" type="button" class="btn secondary">إغلاق الماسح</button></div>
 <div class="card"><h3>إضافة فاتورة محلية</h3><form id="form">
 <label for="merchant">المحل</label><input id="merchant" required maxlength="150">
 <label for="product">اسم المنتج</label><input id="product" required maxlength="150">
@@ -25,7 +25,24 @@ function fileData(file){return new Promise((resolve,reject)=>{if(!file)return re
 const dayMs=86400000;
 function warrantyReminder(x){const start=new Date(x.date+'T12:00:00'),end=new Date(x.end+'T12:00:00');if(!Number.isFinite(+start)||!Number.isFinite(+end))return null;const months=(end.getFullYear()-start.getFullYear())*12+end.getMonth()-start.getMonth()+(end.getDate()-start.getDate())/31;const lead=months>36?30:months>12?14:months>1?7:0;const remaining=Math.ceil((end-Date.now())/dayMs);return {lead,remaining,due:lead>0&&remaining>=0&&remaining<=lead,expired:remaining<0};}
 async function lookup(){await ready;const code=$('lookup').value.trim().toLowerCase();const matches=code?(await all()).filter(x=>String(x.serial||'').trim().toLowerCase()===code):[];$('lookupResult').innerHTML=matches.length?matches.map(x=>'<div class="list-item"><b>'+esc(x.product)+'</b><p>المحل: '+esc(x.merchant)+'</p><p>بداية الضمان: '+esc(x.date)+'</p><p>نهاية الضمان: '+esc(x.end)+'</p></div>').join(''):'<p class="muted">لم يُعثر على ضمان مطابق لهذا الرمز.</p>'}
+let liveControls=null;
+function beep(){try{const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return;const ctx=new AudioCtx(),osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';osc.frequency.value=1100;gain.gain.setValueAtTime(0.08,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.16);osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+0.16);osc.onended=()=>ctx.close()}catch(e){console.warn('Beep unavailable',e)}}
+function stopLive(){if(liveControls){liveControls.stop();liveControls=null}const v=$('scanVideo');if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null}$('liveScanner').hidden=true}
+$('stopScan').onclick=stopLive;
 async function scanCode(target){
+ if(window.ZXingOffline?.startCamera&&navigator.mediaDevices?.getUserMedia){
+  try{
+   stopLive();$('liveScanner').hidden=false;notify('وجّه الكاميرا إلى الرمز...');
+   let accepted=false;
+   liveControls=await window.ZXingOffline.startCamera($('scanVideo'),async value=>{
+    if(accepted||!value)return;accepted=true;
+    $(target).value=value.trim();beep();stopLive();
+    notify('تمت قراءة الرمز بنجاح: '+value+' — أكمل البيانات واضغط حفظ.');
+    if(target==='lookup')await lookup();
+   });return;
+  }catch(err){stopLive();notify('تعذر تشغيل المسح المباشر: '+err.message+'؛ سيتم فتح التصوير كبديل.');}
+ }
+
  const input=$('barcodePhoto');
  input.value='';
  input.onchange=async()=>{
