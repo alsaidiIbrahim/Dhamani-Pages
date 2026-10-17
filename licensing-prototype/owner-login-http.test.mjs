@@ -46,6 +46,8 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   assert.deepEqual((await authorized.json()).items,[{id:'DEMO-1'}]);
   assert.equal((await fetch(base+'/owner/licenses',{headers:{cookie:cookie.split(';')[0]}})).status,200);
   assert.equal((await fetch(base+'/owner/events',{headers:{cookie:cookie.split(';')[0]}})).status,200);
+  assert.equal((await fetch(base+'/owner/orders',{headers:{cookie:'dhamani_owner_session=invalid'}})).status,403);
+  assert.equal((await fetch(base+'/owner/orders',{headers:{cookie:cookie.split(';')[0]+'; '+cookie.split(';')[0]}})).status,403);
   assert.equal((await fetch(base+'/owner/orders?limit=101',{headers:{cookie:cookie.split(';')[0]}})).status,400);
   assert.equal((await fetch(base+'/owner/orders?offset=-1',{headers:{cookie:cookie.split(';')[0]}})).status,400);
 
