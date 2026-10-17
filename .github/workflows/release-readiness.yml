@@ -18,4 +18,4 @@ jobs:
       - name: Offline PWA static readiness
         run: node release-checks/check.mjs
       - name: Isolated licensing prototype tests
-        run: node --test licensing-prototype/engine.test.mjs
+        run: node --test licensing-prototype/*.test.mjs
