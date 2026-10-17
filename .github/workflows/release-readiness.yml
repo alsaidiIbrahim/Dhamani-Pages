@@ -1,0 +1,21 @@
+name: Dhamani release readiness checks
+on:
+  push:
+    paths:
+      - 'offline-test/**'
+      - 'licensing-prototype/**'
+      - 'release-checks/**'
+      - '.github/workflows/release-readiness.yml'
+  workflow_dispatch:
+jobs:
+  static-and-prototype:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Offline PWA static readiness
+        run: node release-checks/check.mjs
+      - name: Isolated licensing prototype tests
+        run: node --test licensing-prototype/engine.test.mjs
