@@ -1,1 +1,15 @@
-const CACHE='dhamani-pages-offline-test-v27';const FILES=['./','./index.html','./styles.css','./manifest.webmanifest','./jsQR.min.js','./zxing.min.js','./ocr/pdf.min.js','./ocr/pdf.worker.min.js','./ocr/tesseract.min.js','./ocr/worker.min.js','./ocr/tesseract-core-simd-lstm.wasm.js','./ocr/tesseract-core-simd-lstm.wasm','./ocr/ara.traineddata.gz','./ocr/eng.traineddata.gz'];self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting())));self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith('dhamani-pages-offline-test-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin||!u.pathname.startsWith('/Dhamani-Pages/offline-test/'))return;if(e.request.mode==='navigate'){e.respondWith(fetch(e.request).catch(()=>caches.match('./index.html')));return}e.respondWith(caches.match(e.request).then(hit=>hit||fetch(e.request)))});
+const CACHE='dhamani-pages-offline-test-v28';
+const FILES=['./','./index.html','./styles.css','./manifest.webmanifest','./jsQR.min.js','./zxing.min.js','./ocr/pdf.min.js','./ocr/pdf.worker.min.js','./ocr/tesseract.min.js','./ocr/worker.min.js','./ocr/tesseract-core-simd-lstm.wasm.js','./ocr/tesseract-core-simd-lstm.wasm','./ocr/ara.traineddata.gz','./ocr/eng.traineddata.gz'];
+self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)).then(()=>self.skipWaiting())));
+self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('dhamani-pages-offline-test-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
+self.addEventListener('fetch',event=>{
+ const request=event.request,url=new URL(request.url);
+ if(request.method!=='GET'||url.origin!==self.location.origin)return;
+ const scope=new URL(self.registration.scope);
+ if(!url.pathname.startsWith(scope.pathname))return;
+ if(request.mode==='navigate'){
+  event.respondWith(fetch(request).then(response=>response.ok?response:Promise.reject(Error('Offline fallback'))).catch(()=>caches.match(new URL('index.html',scope).href)));
+  return;
+ }
+ event.respondWith(caches.match(request).then(hit=>hit||fetch(request)));
+});
