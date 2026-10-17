@@ -3,6 +3,7 @@
 // production-grade identity lifecycle are NOT implemented.
 import {createServer} from 'node:http';
 import {ownerSessionAuthenticator} from './owner-session.mjs';
+import {createOwnerReadHandler} from './owner-api.mjs';
 function reply(res,status,body,headers={}){res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff',...headers});res.end(JSON.stringify(body));}
 async function jsonBody(req){
  const chunks=[];let length=0;
@@ -12,9 +13,10 @@ async function jsonBody(req){
  if(!data||typeof data!=='object'||Array.isArray(data))throw Error('invalid_json');
  return data;
 }
-export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore}={}){
+export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore,repository}={}){
  if(!login||!totpVerifier||!sessionStore)throw Error('missing_dependencies');
  const authenticate=ownerSessionAuthenticator(sessionStore);
+ const readOwner=repository?createOwnerReadHandler({repository,authenticateOwner:authenticate}):null;
  return async(req,res)=>{
   try{
    if(req.method==='POST'){
@@ -26,6 +28,7 @@ export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore}={}
     if(site!==undefined&&site!=='same-origin'&&site!=='none')return reply(res,403,{error:'forbidden'});
     if(req.headers?.['content-type']?.split(';')[0]?.trim().toLowerCase()!=='application/json')return reply(res,415,{error:'unsupported_media_type'});
    }
+   if(readOwner&&req.method==='GET'&&/^\\/owner\\/(orders|licenses|events)(?:\\?|$)/.test(req.url))return readOwner(req,res);
    if(req.method==='POST'&&req.url==='/owner/login/password'){
     const body=await jsonBody(req);
     const result=login.verifyFirstFactor(body.password);
@@ -53,8 +56,8 @@ export function createOwnerLoginHttpHandler({login,totpVerifier,sessionStore}={}
   }catch{return reply(res,400,{error:'invalid_request'});}
  };
 }
-export function startLoopbackOwnerLoginServer({login,totpVerifier,sessionStore,port=0}={}){
- const server=createServer(createOwnerLoginHttpHandler({login,totpVerifier,sessionStore}));
+export function startLoopbackOwnerLoginServer({login,totpVerifier,sessionStore,repository,port=0}={}){
+ const server=createServer(createOwnerLoginHttpHandler({login,totpVerifier,sessionStore,repository}));
  return new Promise((resolve,reject)=>{
   server.once('error',reject);
   server.listen(port,'127.0.0.1',()=>resolve(server));
