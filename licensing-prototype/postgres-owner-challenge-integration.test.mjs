@@ -30,7 +30,7 @@ test('real PostgreSQL rejects expired, exhausted and wrong-owner MFA challenges'
   const repo=new PostgresOwnerChallengeRepository(pool);
   for(const config of [{expiry:"now()-interval '1 minute'",attempts:0,owner:'owner-test'},{expiry:"now()+interval '5 minutes'",attempts:5,owner:'owner-test'},{expiry:"now()+interval '5 minutes'",attempts:0,owner:'different-owner'}]){
    const challenge=randomBytes(32).toString('base64url'),digest=createHash('sha256').update(challenge).digest();
-   await pool.query('INSERT INTO owner_auth_challenges(challenge_hash,owner_id,expires_at,failed_attempts) VALUES($1,$2,'+config.expiry+',$3)',[digest,config.owner,config.attempts]);
+   await pool.query('INSERT INTO owner_auth_challenges(challenge_hash,owner_id,created_at,expires_at,failed_attempts) VALUES($1,$2,now()-interval \'10 minutes\','+config.expiry+',$3)',[digest,config.owner,config.attempts]);
    assert.equal(await repo.consume({challenge,ownerId:'owner-test'}),false);
   }
  }finally{await pool.end();}
