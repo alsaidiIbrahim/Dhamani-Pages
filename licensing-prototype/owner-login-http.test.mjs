@@ -37,6 +37,13 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
 
   assert.equal((await fetch(base+'/owner/orders')).status,403);
   assert.equal((await fetch(base+'/owner/dashboard')).status,403);
+  const loginPage=await fetch(base+'/owner/login');
+  assert.equal(loginPage.status,200);
+  assert.match(await loginPage.text(),/دخول مالك ضماني/);
+  const loginScript=await fetch(base+'/owner/login.js');
+  assert.equal(loginScript.status,200);
+  assert.match(await loginScript.text(),/owner\/login\/totp/);
+
   assert.equal((await fetch(base+'/owner/dashboard.js')).status,403);
   const foreign=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'application/json',origin:'https://untrusted.example'},body:JSON.stringify({password:'correct horse battery staple'})});
   assert.equal(foreign.status,403);
