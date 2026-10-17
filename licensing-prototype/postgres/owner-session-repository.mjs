@@ -1,6 +1,6 @@
 // Experimental PostgreSQL-backed owner session verification and revocation.
 // No HTTP routes or cookie issuance are connected to this module.
-import {createHash} from 'node:crypto';
+import {createHash,randomBytes} from 'node:crypto';
 const digest=token=>createHash('sha256').update(token).digest();
 export class PostgresOwnerSessionRepository {
  constructor(pool,{maxIdleMs=10*60*1000}={}){
@@ -15,6 +15,17 @@ export class PostgresOwnerSessionRepository {
   );
   if(result.rowCount!==1)return null;
   return {id:result.rows[0].owner_id,role:'owner',active:true};
+ }
+ async issueCsrf({token,now=new Date()}={}){
+  if(typeof token!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(token)||!(now instanceof Date)||!Number.isFinite(now.getTime()))return null;
+  const csrf=randomBytes(32).toString('base64url');
+  const result=await this.pool.query("UPDATE owner_auth_sessions SET csrf_hash=$3 WHERE session_hash=$1 AND mfa_verified=TRUE AND revoked_at IS NULL AND expires_at>$2 AND last_activity_at>$2-($4::bigint * interval '1 millisecond') RETURNING session_hash",[digest(token),now,digest(csrf),this.maxIdleMs]);
+  return result.rowCount===1?csrf:null;
+ }
+ async verifyCsrf({token,csrf,now=new Date()}={}){
+  if(typeof token!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(token)||typeof csrf!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(csrf)||!(now instanceof Date)||!Number.isFinite(now.getTime()))return false;
+  const result=await this.pool.query("SELECT 1 FROM owner_auth_sessions WHERE session_hash=$1 AND csrf_hash=$2 AND mfa_verified=TRUE AND revoked_at IS NULL AND expires_at>$3 AND last_activity_at>$3-($4::bigint * interval '1 millisecond')",[digest(token),digest(csrf),now,this.maxIdleMs]);
+  return result.rowCount===1;
  }
  async revoke({token,now=new Date()}={}){
   if(typeof token!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(token)||!(now instanceof Date)||!Number.isFinite(now.getTime()))return false;
