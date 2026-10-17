@@ -92,6 +92,14 @@ function parseReceiptText(raw){
  const phoneCandidates=lines.filter(x=>/(?:هاتف\s*المحل|الواتساب|واتساب|phone|mobile|tel\b)/i.test(x)&&!/(?:فاتورة|invoice|رقم\s*الضمان)/i.test(x));
  const omaniPhones=phoneCandidates.flatMap(x=>[...x.matchAll(/(?:\+?968[\s-]*)?[249]\d{7}\b/g)].map(m=>m[0].replace(/[\s-]/g,'')));
  if(omaniPhones.length)result.phones=[...new Set(omaniPhones.map(x=>x.startsWith('+')?x:x.startsWith('968')?'+'+x:'+968'+x))].join('، ');
+ const labeledMerchant=lines.find(x=>/^(?:اسم\s*(?:المحل|المتجر)|merchant|store\s*name)\s*[:：]/i.test(x));
+ if(labeledMerchant)result.merchant=labeledMerchant.replace(/^[^:：]+[:：]\s*/,'').trim();
+ const shopLine=lines.slice(0,6).find(x=>/(?:عالم|مركز|متجر|معرض|مؤسسة|شركة|محلات|مكتبة|صيدلية|سوبرماركت)\s+[\u0600-\u06FF\s]{4,}/.test(x)&&!/(?:هاتف\s*المحل|واتساب)/.test(x)&&x.length<75);
+ if(!result.merchant&&shopLine)result.merchant=shopLine;
+ if(result.product){result.product=result.product.replace(/\s+\d+\s+\d{1,7}[.,]\d{2,3}.*$/,'').trim();}
+ if(!result.product){const englishItem=lines.find(x=>/\b(?:Samsung|Apple|iPhone|Galaxy|Sony|LG|Huawei|Lenovo|Dell|HP)\b/i.test(x)&&x.length<90);if(englishItem)result.product=englishItem.replace(/^[\s(]+|[\s)]+$/g,'').trim();}
+ const invoiceNumber=text.match(/\bINV-[A-Z0-9-]{4,}\b/i);
+ if(invoiceNumber&&!result.warrantyNumber)result.warrantyNumber='';
  if(/manufacturing defects|عيوب التصنيع/i.test(text))result.details='الضمان ضد عيوب التصنيع فقط. يرجى مراجعة الشروط والاستثناءات في الوثيقة الأصلية.';
  return result;
 }
