@@ -12,9 +12,9 @@ export function verifyPassword(password,record){
  return timingSafeEqual(actual,Buffer.from(record.hash,'hex'));
 }
 export class OwnerLoginPrototype {
- constructor({ownerId,passwordRecord,sessionStore,now=()=>Date.now(),maxFailures=5,lockMs=15*60*1000}={}){
-  if(!ownerId||!passwordRecord||!sessionStore||typeof sessionStore.add!=='function')throw Error('login_configuration_required');
-  this.ownerId=ownerId;this.passwordRecord=passwordRecord;this.sessionStore=sessionStore;this.now=now;this.maxFailures=maxFailures;this.lockMs=lockMs;this.failures=0;this.lockUntil=0;this.pending=new Map();this.challengeLifetimeMs=5*60*1000;
+ constructor({ownerId,passwordRecord,sessionStore,totpVerifier,now=()=>Date.now(),maxFailures=5,lockMs=15*60*1000}={}){
+  if(!ownerId||!passwordRecord||!sessionStore||typeof sessionStore.add!=='function'||!totpVerifier||typeof totpVerifier.verify!=='function')throw Error('login_configuration_required');
+  this.ownerId=ownerId;this.passwordRecord=passwordRecord;this.totpVerifier=totpVerifier;this.sessionStore=sessionStore;this.now=now;this.maxFailures=maxFailures;this.lockMs=lockMs;this.failures=0;this.lockUntil=0;this.pending=new Map();this.challengeLifetimeMs=5*60*1000;
  }
  cleanupChallenges(){let removed=0;for(const [key,value] of this.pending){if(value.expiresAt<=this.now()){this.pending.delete(key);removed++;}}return removed;}
  verifyFirstFactor(password){
@@ -31,12 +31,11 @@ export class OwnerLoginPrototype {
   this.pending.set(challenge,{expiresAt:this.now()+this.challengeLifetimeMs,failures:0});
   return {ok:true,challenge};
  }
- verifyTotpAndIssueSession({challenge,totpCode,totpVerifier,ttlMs=30*60*1000}){
+ verifyTotpAndIssueSession({challenge,totpCode,ttlMs=30*60*1000}){
   const pending=typeof challenge==='string'?this.pending.get(challenge):null;
   if(!pending||this.now()>=pending.expiresAt){if(pending)this.pending.delete(challenge);throw Error('mfa_required');}
-  if(!totpVerifier||typeof totpVerifier.verify!=='function')throw Error('mfa_required');
   if(!Number.isSafeInteger(ttlMs)||ttlMs<1000||ttlMs>30*60*1000)throw Error('invalid_session_lifetime');
-  if(!totpVerifier.verify(totpCode)){
+  if(!this.totpVerifier.verify(totpCode)){
    pending.failures++;
    if(pending.failures>=5)this.pending.delete(challenge);
    throw Error('mfa_required');
