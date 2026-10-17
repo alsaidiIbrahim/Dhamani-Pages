@@ -108,6 +108,17 @@ function parseReceiptText(raw){
  if(serialAny&&!result.serial)result.serial=serialAny[1];
  const explicitWarranty=lines.find(x=>/(?:رقم\s*شهادة\s*الضمان|warranty\s*certificate\s*(?:no|number))/i.test(x));
  if(!explicitWarranty)result.warrantyNumber='';
+ const moneyCandidates=[];
+ for(let i=0;i<lines.length;i++){
+  const line=lines[i];if(!/(?:المجموع\s*الكلي|إجمالي\s*(?:الفاتورة|المبلغ)|المبلغ\s*الإجمالي|grand\s*total|amount\s*due|total\s*amount)/i.test(line))continue;
+  for(const part of [line,lines[i+1]||'']){
+   for(const m of part.matchAll(/(?:\b|^)(\d{1,6}(?:[.,]\d{3})|\d{1,6}(?:[.,]\d{2}))(?!\d)/g)){
+    const n=Number(m[1].replace(',','.'));if(Number.isFinite(n)&&n>0)moneyCandidates.push({n,raw:m[1]});
+   }
+  }
+ }
+ if(moneyCandidates.length)result.price=String(moneyCandidates.sort((a,b)=>b.n-a.n)[0].n);
+ if(!result.merchant){const firstHeader=lines.slice(0,9).find(x=>/^(?:عالم|مركز|متجر|معرض|مؤسسة|شركة|محلات|صيدلية|مكتبة)\s+[\u0600-\u06FF\s]{3,}/.test(x)&&!/(?:فاتورة|هاتف|واتساب)/.test(x));if(firstHeader)result.merchant=firstHeader.trim();}
  if(/manufacturing defects|عيوب التصنيع/i.test(text))result.details='الضمان ضد عيوب التصنيع فقط. يرجى مراجعة الشروط والاستثناءات في الوثيقة الأصلية.';
  return result;
 }
