@@ -2,8 +2,9 @@ import {randomBytes,createHash,generateKeyPairSync,createPublicKey,sign,verify} 
 const sha=v=>createHash('sha256').update(v).digest('hex');
 const day=86400000;
 export class LicenseEngine {
- constructor({now=()=>Date.now(),signingPrivateKey=null}={}){this.now=now;this.orders=new Map();this.licenses=new Map();this.audit=[];this.challenges=new Map();const k=signingPrivateKey?{privateKey:signingPrivateKey,publicKey:null}:generateKeyPairSync('ed25519');this.privateKey=k.privateKey;this.publicKey=k.publicKey??createPublicKey(signingPrivateKey);}
- log(action,id){this.audit.push({action,id,at:new Date(this.now()).toISOString()});}
+ constructor({now=()=>Date.now(),signingPrivateKey=null}={}){this.now=now;this.orders=new Map();this.licenses=new Map();this.audit=[];this.auditHead='GENESIS';this.challenges=new Map();const k=signingPrivateKey?{privateKey:signingPrivateKey,publicKey:null}:generateKeyPairSync('ed25519');this.privateKey=k.privateKey;this.publicKey=k.publicKey??createPublicKey(signingPrivateKey);}
+ log(action,id){const entry={seq:this.audit.length+1,action,id,at:new Date(this.now()).toISOString(),previousHash:this.auditHead};entry.hash=sha(JSON.stringify(entry));this.audit.push(entry);this.auditHead=entry.hash;}
+ verifyAudit(){let previousHash='GENESIS';for(let i=0;i<this.audit.length;i++){const e=this.audit[i];const {hash,...body}=e;if(e.seq!==i+1||e.previousHash!==previousHash||sha(JSON.stringify(body))!==hash)return false;previousHash=hash;}return previousHash===this.auditHead;}
  order(){const id=randomBytes(12).toString('hex');this.orders.set(id,{id,paid:false});this.log('order',id);return {id,status:'pending_payment'};}
  approve(id){const o=this.orders.get(id);if(!o)throw Error('order_not_found');if(o.paid)throw Error('already_approved');o.paid=true;const token=randomBytes(24).toString('base64url');const licenseId=randomBytes(12).toString('hex');this.licenses.set(licenseId,{id:licenseId,orderId:id,tokenHash:sha(token),device:null,status:'approved',revision:0});this.log('approve',licenseId);return {licenseId,activationToken:token};}
  getByToken(token){const l=[...this.licenses.values()].find(x=>x.tokenHash===sha(token));if(!l)throw Error('invalid_token');return l;}
