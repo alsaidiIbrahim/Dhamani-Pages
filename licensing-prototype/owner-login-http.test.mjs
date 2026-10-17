@@ -46,6 +46,7 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
 
   assert.equal((await fetch(base+'/owner/dashboard.js')).status,403);
   assert.equal((await fetch(base+'/owner/csrf')).status,403);
+  assert.equal((await fetch(base+'/owner/session')).status,403);
   const foreign=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'application/json',origin:'https://untrusted.example'},body:JSON.stringify({password:'correct horse battery staple'})});
   assert.equal(foreign.status,403);
   const badType=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'text/plain'},body:'hello'});
@@ -74,6 +75,10 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   assert.match(dashboardScriptText,/owner\/logout/);
   assert.match(dashboardScriptText,/replaceChildren/);
   assert.match(dashboardScriptText,/sessionExpired/);
+  assert.match(dashboardScriptText,/setTimeout\(expireSession/);
+  const sessionResponse=await fetch(base+'/owner/session',{headers:{cookie:cookie.split(';')[0]}});
+  assert.equal(sessionResponse.status,200);
+  assert.equal((await sessionResponse.json()).expiresAt,now()+30*60*1000);
   const csrfResponse=await fetch(base+'/owner/csrf',{headers:{cookie:cookie.split(';')[0]}});
   assert.equal(csrfResponse.status,200);
   const refreshedCsrf=(await csrfResponse.json()).csrfToken;
@@ -97,6 +102,7 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   assert.equal((await fetch(base+'/owner/orders',{headers:{cookie:cookie.split(';')[0]}})).status,403);
   assert.equal((await fetch(base+'/owner/dashboard',{headers:{cookie:cookie.split(';')[0]}})).status,403);
   assert.equal((await fetch(base+'/owner/csrf',{headers:{cookie:cookie.split(';')[0]}})).status,403);
+  assert.equal((await fetch(base+'/owner/session',{headers:{cookie:cookie.split(';')[0]}})).status,403);
   assert.equal((await post('/owner/logout',{},cookie.split(';')[0])).status,403);
  }finally{await new Promise(resolve=>server.close(resolve));}
 });
