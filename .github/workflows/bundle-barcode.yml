@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/bundle-barcode.yml'
+      - 'offline-test/barcode-entry.js'
 jobs:
   bundle:
     runs-on: ubuntu-latest
