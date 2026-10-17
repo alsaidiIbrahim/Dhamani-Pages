@@ -10,7 +10,8 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
  const secret=Buffer.alloc(32,11);
  const sessionStore=new OwnerSessionStore({now});
  const login=new OwnerLoginPrototype({ownerId:'owner',passwordRecord:createPasswordVerifier('correct horse battery staple'),sessionStore,now});
- const server=await startLoopbackOwnerLoginServer({login,totpVerifier:new OwnerTotpVerifier({secret,now}),sessionStore});
+ const repository={listOrders:async()=>[{id:'DEMO-1'}],listLicenses:async()=>[],listEvents:async()=>[]};
+ const server=await startLoopbackOwnerLoginServer({login,totpVerifier:new OwnerTotpVerifier({secret,now}),sessionStore,repository});
  try{
   assert.equal(server.address().address,'127.0.0.1');
   const base='http://127.0.0.1:'+server.address().port;
@@ -22,6 +23,7 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
    req.on('error',reject);req.end(JSON.stringify({password:'correct horse battery staple'}));
   });
   assert.equal(badHostStatus,403);
+  assert.equal((await fetch(base+'/owner/orders')).status,403);
   const foreign=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'application/json',origin:'https://untrusted.example'},body:JSON.stringify({password:'correct horse battery staple'})});
   assert.equal(foreign.status,403);
   const badType=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'text/plain'},body:'hello'});
@@ -39,10 +41,17 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   const cookie=second.headers.get('set-cookie');
   assert.match(cookie,/HttpOnly/);
   assert.match(cookie,/SameSite=Strict/);
+  const authorized=await fetch(base+'/owner/orders',{headers:{cookie:cookie.split(';')[0]}});
+  assert.equal(authorized.status,200);
+  assert.deepEqual((await authorized.json()).items,[{id:'DEMO-1'}]);
+  assert.equal((await fetch(base+'/owner/licenses',{headers:{cookie:cookie.split(';')[0]}})).status,200);
+  assert.equal((await fetch(base+'/owner/events',{headers:{cookie:cookie.split(';')[0]}})).status,200);
+  assert.equal((await fetch(base+'/owner/orders',{method:'POST',headers:{cookie:cookie.split(';')[0],'content-type':'application/json'},body:'{}'})).status,404);
   assert.equal((await post('/owner/login/totp',{challenge,code:totpCode(secret,3)})).status,401);
   assert.equal((await post('/owner/logout',{},cookie.split(';')[0])).status,403);
   assert.equal((await post('/owner/logout',{},cookie.split(';')[0],'invalid')).status,403);
   assert.equal((await post('/owner/logout',{},cookie.split(';')[0],csrfToken)).status,200);
+  assert.equal((await fetch(base+'/owner/orders',{headers:{cookie:cookie.split(';')[0]}})).status,403);
   assert.equal((await post('/owner/logout',{},cookie.split(';')[0])).status,403);
  }finally{await new Promise(resolve=>server.close(resolve));}
 });
