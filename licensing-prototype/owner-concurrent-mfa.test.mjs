@@ -1,0 +1,40 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {OwnerLoginPrototype,createPasswordVerifier} from './owner-login.mjs';
+import {OwnerSessionStore} from './owner-session.mjs';
+import {OwnerTotpVerifier,totpCode} from './owner-totp.mjs';
+test('simultaneous MFA submissions can issue only one session for a challenge',async()=>{
+ const now=()=>90_000,secret=Buffer.alloc(32,21);
+ const store=new OwnerSessionStore({now});
+ const login=new OwnerLoginPrototype({ownerId:'demo',passwordRecord:createPasswordVerifier('demo-owner-password-123'),sessionStore:store,totpVerifier:new OwnerTotpVerifier({secret,now}),now});
+ const {challenge}=login.verifyFirstFactor('demo-owner-password-123');
+ const code=totpCode(secret,3);
+ const results=await Promise.allSettled(Array.from({length:12},()=>Promise.resolve().then(()=>login.verifyTotpAndIssueSession({challenge,totpCode:code}))));
+ const fulfilled=results.filter(x=>x.status==='fulfilled');
+ assert.equal(fulfilled.length,1);
+ assert.equal(results.filter(x=>x.status==='rejected').length,11);
+ assert.equal(store.sessions.size,1);
+ assert.equal(store.verify(fulfilled[0].value).role,'owner');
+});
+test('simultaneous incorrect MFA attempts exhaust challenge without session issuance',async()=>{
+ const now=()=>90_000,secret=Buffer.alloc(32,22);
+ const store=new OwnerSessionStore({now});
+ const login=new OwnerLoginPrototype({ownerId:'demo',passwordRecord:createPasswordVerifier('demo-owner-password-123'),sessionStore:store,totpVerifier:new OwnerTotpVerifier({secret,now}),now});
+ const {challenge}=login.verifyFirstFactor('demo-owner-password-123');
+ const attempts=await Promise.allSettled(Array.from({length:12},()=>Promise.resolve().then(()=>login.verifyTotpAndIssueSession({challenge,totpCode:'invalid'}))));
+ assert.equal(attempts.filter(x=>x.status==='rejected').length,12);
+ assert.equal(login.pending.has(challenge),false);
+ assert.equal(store.sessions.size,0);
+ assert.throws(()=>login.verifyTotpAndIssueSession({challenge,totpCode:totpCode(secret,3)}),/mfa_required/);
+});
+test('distinct challenges cannot reuse an already accepted TOTP time step',()=>{
+ const now=()=>90_000,secret=Buffer.alloc(32,23);
+ const store=new OwnerSessionStore({now});
+ const login=new OwnerLoginPrototype({ownerId:'demo',passwordRecord:createPasswordVerifier('demo-owner-password-123'),sessionStore:store,totpVerifier:new OwnerTotpVerifier({secret,now}),now});
+ const a=login.verifyFirstFactor('demo-owner-password-123').challenge;
+ const b=login.verifyFirstFactor('demo-owner-password-123').challenge;
+ const code=totpCode(secret,3);
+ assert.equal(typeof login.verifyTotpAndIssueSession({challenge:a,totpCode:code}),'string');
+ assert.throws(()=>login.verifyTotpAndIssueSession({challenge:b,totpCode:code}),/mfa_required/);
+ assert.equal(store.sessions.size,1);
+});
