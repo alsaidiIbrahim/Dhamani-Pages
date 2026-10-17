@@ -24,6 +24,8 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   });
   assert.equal(badHostStatus,403);
   assert.equal((await fetch(base+'/owner/orders')).status,403);
+  assert.equal((await fetch(base+'/owner/dashboard')).status,403);
+  assert.equal((await fetch(base+'/owner/dashboard.js')).status,403);
   const foreign=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'application/json',origin:'https://untrusted.example'},body:JSON.stringify({password:'correct horse battery staple'})});
   assert.equal(foreign.status,403);
   const badType=await fetch(base+'/owner/login/password',{method:'POST',headers:{'content-type':'text/plain'},body:'hello'});
@@ -41,6 +43,12 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   const cookie=second.headers.get('set-cookie');
   assert.match(cookie,/HttpOnly/);
   assert.match(cookie,/SameSite=Strict/);
+  const dashboard=await fetch(base+'/owner/dashboard',{headers:{cookie:cookie.split(';')[0]}});
+  assert.equal(dashboard.status,200);
+  assert.match(await dashboard.text(),/لوحة الإدارة المحلية/);
+  const dashboardScript=await fetch(base+'/owner/dashboard.js',{headers:{cookie:cookie.split(';')[0]}});
+  assert.equal(dashboardScript.status,200);
+  assert.match(await dashboardScript.text(),/textContent/);
   const authorized=await fetch(base+'/owner/orders',{headers:{cookie:cookie.split(';')[0]}});
   assert.equal(authorized.status,200);
   assert.deepEqual((await authorized.json()).items,[{id:'DEMO-1'}]);
@@ -57,6 +65,7 @@ test('local HTTP owner login enforces two factors and logout',async()=>{
   assert.equal((await post('/owner/logout',{},cookie.split(';')[0],'invalid')).status,403);
   assert.equal((await post('/owner/logout',{},cookie.split(';')[0],csrfToken)).status,200);
   assert.equal((await fetch(base+'/owner/orders',{headers:{cookie:cookie.split(';')[0]}})).status,403);
+  assert.equal((await fetch(base+'/owner/dashboard',{headers:{cookie:cookie.split(';')[0]}})).status,403);
   assert.equal((await post('/owner/logout',{},cookie.split(';')[0])).status,403);
  }finally{await new Promise(resolve=>server.close(resolve));}
 });
