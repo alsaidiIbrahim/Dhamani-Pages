@@ -1,8 +1,8 @@
-import {randomBytes,createHash,generateKeyPairSync,sign,verify} from 'node:crypto';
+import {randomBytes,createHash,generateKeyPairSync,createPublicKey,sign,verify} from 'node:crypto';
 const sha=v=>createHash('sha256').update(v).digest('hex');
 const day=86400000;
 export class LicenseEngine {
- constructor({now=()=>Date.now()}={}){this.now=now;this.orders=new Map();this.licenses=new Map();this.audit=[];this.challenges=new Map();const k=generateKeyPairSync('ed25519');this.privateKey=k.privateKey;this.publicKey=k.publicKey;}
+ constructor({now=()=>Date.now(),signingPrivateKey=null}={}){this.now=now;this.orders=new Map();this.licenses=new Map();this.audit=[];this.challenges=new Map();const k=signingPrivateKey?{privateKey:signingPrivateKey,publicKey:null}:generateKeyPairSync('ed25519');this.privateKey=k.privateKey;this.publicKey=k.publicKey??createPublicKey(signingPrivateKey);}
  log(action,id){this.audit.push({action,id,at:new Date(this.now()).toISOString()});}
  order(){const id=randomBytes(12).toString('hex');this.orders.set(id,{id,paid:false});this.log('order',id);return {id,status:'pending_payment'};}
  approve(id){const o=this.orders.get(id);if(!o)throw Error('order_not_found');if(o.paid)throw Error('already_approved');o.paid=true;const token=randomBytes(24).toString('base64url');const licenseId=randomBytes(12).toString('hex');this.licenses.set(licenseId,{id:licenseId,orderId:id,tokenHash:sha(token),device:null,status:'approved',revision:0});this.log('approve',licenseId);return {licenseId,activationToken:token};}
