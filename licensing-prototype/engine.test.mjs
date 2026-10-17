@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {LicenseEngine} from './engine.mjs';
+test('requires payment approval and binds one device',()=>{
+ const e=new LicenseEngine({now:()=>Date.UTC(2026,9,17)});const order=e.order();assert.equal(order.status,'pending_payment');
+ assert.throws(()=>e.activate('fake','device-A'),/invalid_token/);
+ const {licenseId,activationToken}=e.approve(order.id);
+ const cert=e.activate(activationToken,'device-A');
+ assert.equal(LicenseEngine.verifyCertificate(cert,e.publicKey).licenseType,'perpetual_single_device');
+ assert.equal(LicenseEngine.verifyCertificate(cert,e.publicKey).nextCheckAt-Date.UTC(2026,9,17),30*86400000);
+ assert.throws(()=>e.activate(activationToken,'device-B'),/already_bound/);
+ assert.throws(()=>e.verify(activationToken,'device-B'),/device_not_authorized/);
+ e.transfer(licenseId,'device-B');
+ assert.throws(()=>e.verify(activationToken,'device-A'),/device_not_authorized/);
+ assert.equal(LicenseEngine.verifyCertificate(e.verify(activationToken,'device-B'),e.publicKey).revision,1);
+ e.suspend(licenseId);
+ assert.throws(()=>e.verify(activationToken,'device-B'),/device_not_authorized/);
+ const forged={...cert,body:Buffer.from('{"forged":true}').toString('base64url')};
+ assert.equal(LicenseEngine.verifyCertificate(forged,e.publicKey),null);
+});
