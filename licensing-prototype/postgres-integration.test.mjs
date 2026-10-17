@@ -28,3 +28,39 @@ test('real PostgreSQL approval, uniqueness, rollback and transfer',async t=>{
   assert.deepEqual(events.rows.map(x=>x.action),['payment_approved','device_transferred']);
  }finally{await pool.end()}
 });
+
+test('real PostgreSQL concurrent approvals create exactly one license',async t=>{
+ if(!process.env.DHAMANI_TEST_DATABASE_URL){t.skip('No temporary PostgreSQL test database configured');return;}
+ const {default:pg}=await import('pg');
+ const pool=new pg.Pool({connectionString:process.env.DHAMANI_TEST_DATABASE_URL,max:4});
+ const repo=new PostgresLicenseRepository(pool);
+ try{
+  const orderId=randomUUID(),adminId='concurrency-test';
+  await pool.query('INSERT INTO license_orders(id) VALUES($1)',[orderId]);
+  const attempts=await Promise.allSettled(Array.from({length:2},()=>repo.approveOrder({orderId,adminId,licenseId:randomUUID(),activationTokenHash:randomBytes(32)})));
+  assert.equal(attempts.filter(x=>x.status==='fulfilled').length,1);
+  assert.equal(attempts.filter(x=>x.status==='rejected').length,1);
+  const licenses=await pool.query('SELECT count(*)::int AS n FROM licenses WHERE order_id=$1',[orderId]);
+  const events=await pool.query("SELECT count(*)::int AS n FROM license_events WHERE order_id=$1 AND action='payment_approved'",[orderId]);
+  assert.equal(licenses.rows[0].n,1);
+  assert.equal(events.rows[0].n,1);
+ }finally{await pool.end()}
+});
+test('real PostgreSQL concurrent transfers reject stale revision',async t=>{
+ if(!process.env.DHAMANI_TEST_DATABASE_URL){t.skip('No temporary PostgreSQL test database configured');return;}
+ const {default:pg}=await import('pg');
+ const pool=new pg.Pool({connectionString:process.env.DHAMANI_TEST_DATABASE_URL,max:4});
+ const repo=new PostgresLicenseRepository(pool);
+ try{
+  const orderId=randomUUID(),licenseId=randomUUID(),adminId='concurrency-test';
+  await pool.query('INSERT INTO license_orders(id) VALUES($1)',[orderId]);
+  await repo.approveOrder({orderId,licenseId,adminId,activationTokenHash:randomBytes(32)});
+  const attempts=await Promise.allSettled(['device-A','device-B'].map(newDevicePublicKey=>repo.transferLicense({licenseId,adminId,newDevicePublicKey,expectedRevision:0,verifyDeviceProof:()=>true})));
+  assert.equal(attempts.filter(x=>x.status==='fulfilled').length,1);
+  assert.equal(attempts.filter(x=>x.status==='rejected').length,1);
+  const license=await pool.query('SELECT revision FROM licenses WHERE id=$1',[licenseId]);
+  assert.equal(license.rows[0].revision,1);
+  const events=await pool.query("SELECT count(*)::int AS n FROM license_events WHERE license_id=$1 AND action='device_transferred'",[licenseId]);
+  assert.equal(events.rows[0].n,1);
+ }finally{await pool.end()}
+});
