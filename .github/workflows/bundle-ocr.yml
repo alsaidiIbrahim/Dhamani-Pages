@@ -15,11 +15,13 @@ jobs:
         with:
           node-version: '22'
       - name: Install Tesseract OCR
-        run: npm install --no-save tesseract.js@5.1.1 tesseract.js-core@5.0.0
+        run: npm install --no-save tesseract.js@5.1.1 tesseract.js-core@5.0.0 pdfjs-dist@3.11.174
       - name: Bundle offline runtime and Arabic English languages
         run: |
           mkdir -p offline-test/ocr
           cp node_modules/tesseract.js/dist/tesseract.min.js offline-test/ocr/tesseract.min.js
+          cp node_modules/pdfjs-dist/build/pdf.min.js offline-test/ocr/pdf.min.js
+          cp node_modules/pdfjs-dist/build/pdf.worker.min.js offline-test/ocr/pdf.worker.min.js
           cp node_modules/tesseract.js/dist/worker.min.js offline-test/ocr/worker.min.js
           cp node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js offline-test/ocr/
           cp node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm offline-test/ocr/
