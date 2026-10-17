@@ -16,6 +16,11 @@ export class PostgresOwnerSessionRepository {
   if(result.rowCount!==1)return null;
   return {id:result.rows[0].owner_id,role:'owner',active:true};
  }
+ async expiresAt({token,now=new Date()}={}){
+  if(typeof token!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(token)||!(now instanceof Date)||!Number.isFinite(now.getTime()))return null;
+  const result=await this.pool.query("SELECT LEAST(expires_at,last_activity_at+($3::bigint * interval '1 millisecond')) AS effective_expiry FROM owner_auth_sessions WHERE session_hash=$1 AND mfa_verified=TRUE AND revoked_at IS NULL AND expires_at>$2 AND last_activity_at<=$2 AND last_activity_at>$2-($3::bigint * interval '1 millisecond')",[digest(token),now,this.maxIdleMs]);
+  return result.rowCount===1?new Date(result.rows[0].effective_expiry).getTime():null;
+ }
  async issueCsrf({token,now=new Date()}={}){
   if(typeof token!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(token)||!(now instanceof Date)||!Number.isFinite(now.getTime()))return null;
   const csrf=randomBytes(32).toString('base64url');
