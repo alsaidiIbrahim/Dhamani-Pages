@@ -50,8 +50,8 @@ function parseReceiptText(raw){
  const lines=raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
  const text=lines.join(' ');
  const result={merchant:'',country:'',governorate:'',wilayat:'',phones:'',date:'',months:0,price:'',serial:'',warrantyNumber:'',details:''};
- const company=lines.find(x=>/FAD\s*CNC\s*COMPANY/i.test(x))||lines.find(x=>/(?:L\.?\s*L\.?\s*C\.?|شركة|TRADING|EQUIPMENTS)/i.test(x)&&x.length<110);
- if(company){const english=company.match(/FAD\s*CNC\s*COMPANY\s*EQUIPMENTS\s*L\.?\s*L\.?\s*C\.?/i);result.merchant=english?english[0].replace(/\s+/g,' ').trim():company.trim()}
+ const company=lines.find(x=>/(?:L\.?\s*L\.?\s*C\.?|شركة|TRADING|EQUIPMENTS|STORE|SHOP|MARKET|محل|مؤسسة)/i.test(x)&&x.length<110);
+ if(company){result.merchant=company.replace(/^[^A-Za-z\u0600-\u06FF]+|[^A-Za-z\u0600-\u06FF.]+$/g,'').trim()}
  const uae=/U\.?\s*A\.?\s*E\.?|United Arab Emirates|الإمارات/i.test(text);
  if(uae)result.country='الإمارات العربية المتحدة';
  if(/Ajman|عجمان/i.test(text))result.governorate='عجمان';
@@ -62,7 +62,7 @@ function parseReceiptText(raw){
  for(const m of dates){const y=Number(m[3]||m[4]),mo=Number(m[2]||m[5]),d=Number(m[1]||m[6]);const dt=new Date(Date.UTC(y,mo-1,d));if(dt.getUTCFullYear()===y&&dt.getUTCMonth()===mo-1&&dt.getUTCDate()===d){result.date=y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');break}}
  const years=/\b1\s*YEAR\b|one\s+year|عام\s+واحد|سنة\s+واحدة|لمدة\s+عام/i.test(text);
  const months=text.match(/(?:warranty|guarantee|ضمان).{0,40}?(\d{1,2})\s*(months?|شهر|أشهر)/i);
- result.months=years?12:months?Number(months[1]):0;
+ const numericYears=text.match(/(?:warranty|guarantee|ضمان).{0,40}?(\d{1,2})\s*(years?|سنوات?|سنة)/i);result.months=years?12:months?Number(months[1]):numericYears?Number(numericYears[1])*12:0;
  const total=text.match(/(?:grand\s*total|total|الإجمالي|المجموع)[^\n]{0,25}?(\d+[.,]\d{2,3})/i);
  if(total)result.price=total[1].replace(',','.');
  const serial=text.match(/(?:serial\s*(?:no|number)?|الرقم\s*التسلسلي|سيريال)\s*[:#-]?\s*([A-Z0-9-]{5,})/i);
