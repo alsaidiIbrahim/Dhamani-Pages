@@ -41,7 +41,6 @@ async function checkSession(){
  }catch{expireSession();return false;}
 }
 checkSession().then(valid=>{if(valid)Promise.all(Object.keys(columns).map(load)).then(()=>{if(state.textContent==='جاري تحميل بيانات الجلسة...')state.textContent='تم تحميل بيانات الإدارة للقراءة فقط.';});});
-/* previous startup: Promise.all(Object.keys(columns).map(load)).then(()=>{if(state.textContent==='جاري تحميل بيانات الجلسة...')state.textContent='تم تحميل بيانات الإدارة للقراءة فقط.';}); */
 // Refresh on returning to a backgrounded tab; a revoked session must not leave stale rows visible.
 document.addEventListener('visibilitychange',async()=>{if(!document.hidden&&!sessionExpired&&await checkSession())Promise.all(Object.keys(columns).map(load));});
 
